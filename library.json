@@ -1,12 +1,12 @@
 {
-  "name": "HomeKey libs",
+  "name": "HK-HomeKit Lib",
   "version": "1.0.0",
   "description": "",
   "keywords": "homekit, nfc",
   "repository":
   {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/rednblkx/HK-HomeKit"
   },
   "authors":
   [
@@ -18,5 +18,5 @@
     "johboh/nlohmann-json": "^3.11.3"
   },
   "frameworks": ["espidf", "arduino"],
-  "platforms": "*"
+  "platforms": ["espressif8266", "espressif32"]
 }
