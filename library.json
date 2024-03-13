@@ -1,0 +1,22 @@
+{
+  "name": "HomeKey libs",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": "homekit, nfc",
+  "repository":
+  {
+    "type": "git",
+    "url": ""
+  },
+  "authors":
+  [
+  ],
+  "license": "MIT",
+  "homepage": "",
+  "dependencies": {
+    "telecombretagne/YACL": "^1.0.3",
+    "johboh/nlohmann-json": "^3.11.3"
+  },
+  "frameworks": ["espidf", "arduino"],
+  "platforms": "*"
+}
