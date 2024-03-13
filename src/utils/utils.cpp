@@ -5,7 +5,8 @@ namespace utils
   std::string int_to_hex( int i )
   {
     std::stringstream stream;
-    stream << std::hex << i;
+    stream << std::setfill ('0') << std::setw(2) 
+          << std::hex << i;
     return stream.str();
   }
 

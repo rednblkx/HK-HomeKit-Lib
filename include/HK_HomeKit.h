@@ -16,10 +16,9 @@ class HK_HomeKit
     nvs_handle& nvsHandle;
     const char* nvsKey = "READERDATA";
     bool save_to_nvs();
-    BerTlv tlv;
     std::tuple<uint8_t*, int> provision_device_cred(std::vector<uint8_t> buf);
     int set_reader_key(std::vector<uint8_t> buf);
   public:
-    HK_HomeKit(std::vector<uint8_t> tlvData, homeKeyReader::readerData_t& readerData, nvs_handle& nvsHandle, const char* nvsKey);
-    std::vector<uint8_t> processResult();
+    HK_HomeKit(homeKeyReader::readerData_t& readerData, nvs_handle& nvsHandle, const char* nvsKey);
+    std::vector<uint8_t> processResult(std::vector<uint8_t> tlvData);
 };

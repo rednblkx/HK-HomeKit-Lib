@@ -1,95 +1,97 @@
 #include <HK_HomeKit.h>
 
-HK_HomeKit::HK_HomeKit(std::vector<uint8_t> tlvData, homeKeyReader::readerData_t& readerData, nvs_handle& nvsHandle, const char* nvsKey) : readerData(readerData), nvsHandle(nvsHandle), nvsKey(nvsKey) {
-  tlv.SetTlv(tlvData);
+HK_HomeKit::HK_HomeKit(homeKeyReader::readerData_t& readerData, nvs_handle& nvsHandle, const char* nvsKey) : readerData(readerData), nvsHandle(nvsHandle), nvsKey(nvsKey) {
 }
 
-std::vector<uint8_t> HK_HomeKit::processResult() {
+std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
   std::vector<uint8_t> operation;
   std::vector<uint8_t> RKR;
   std::vector<uint8_t> DCR;
-  tlv.GetValue(int_to_hex(kReader_Operation), &operation);
-  switch (*operation.data()) {
-  case kReader_Operation_Read:
-    if (tlv.GetValue(int_to_hex(kReader_Reader_Key_Request), &RKR) == TLV_OK) {
-      LOG(I, "GET READER KEY REQUEST");
-      if (memcmp(readerData.reader_private_key, std::vector<uint8_t>(32, 0).data(), 32)) {
-        size_t out_len = 0;
-        BerTlv subTlv;
-        subTlv.Add(int_to_hex(kReader_Res_Key_Identifier), std::vector<uint8_t>{readerData.reader_identifier, readerData.reader_identifier + sizeof(readerData.reader_identifier)});
-        LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", subTlv.GetTlv().size(), subTlv.GetTlvAsHexString().c_str());
-        BerTlv resTlv;
-        resTlv.Add(int_to_hex(kReader_Res_Reader_Key_Response), subTlv.GetTlv());
-        LOG(D, "TLV LENGTH: %d, DATA: %s", resTlv.GetTlv().size(), resTlv.GetTlvAsHexString().c_str());
-        mbedtls_base64_encode(NULL, 0, &out_len, resTlv.GetTlv().data(), resTlv.GetTlv().size());
-        std::vector<uint8_t> resB64(out_len + 1);
-        int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, resTlv.GetTlv().data(), resTlv.GetTlv().size());
-        resB64[out_len] = '\0';
-        LOG(D, "B64 ENC STATUS: %d", ret);
-        LOG(D, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
-        return resB64;
+  BerTlv tlv;
+  tlv.SetTlv(tlvData);
+  if (tlv.GetValue(int_to_hex(kReader_Operation), &operation) == TLV_OK) {
+    switch (*operation.data()) {
+    case kReader_Operation_Read:
+      if (tlv.GetValue(int_to_hex(kReader_Reader_Key_Request), &RKR) == TLV_OK) {
+        LOG(I, "GET READER KEY REQUEST");
+        if (memcmp(readerData.reader_private_key, std::vector<uint8_t>(32, 0).data(), 32)) {
+          size_t out_len = 0;
+          BerTlv subTlv;
+          subTlv.Add(int_to_hex(kReader_Res_Key_Identifier), std::vector<uint8_t>{readerData.reader_identifier, readerData.reader_identifier + sizeof(readerData.reader_identifier)});
+          LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", subTlv.GetTlv().size(), subTlv.GetTlvAsHexString().c_str());
+          BerTlv resTlv;
+          resTlv.Add(int_to_hex(kReader_Res_Reader_Key_Response), subTlv.GetTlv());
+          LOG(D, "TLV LENGTH: %d, DATA: %s", resTlv.GetTlv().size(), resTlv.GetTlvAsHexString().c_str());
+          mbedtls_base64_encode(NULL, 0, &out_len, resTlv.GetTlv().data(), resTlv.GetTlv().size());
+          std::vector<uint8_t> resB64(out_len + 1);
+          int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, resTlv.GetTlv().data(), resTlv.GetTlv().size());
+          resB64[out_len] = '\0';
+          LOG(D, "B64 ENC STATUS: %d", ret);
+          LOG(D, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
+          return resB64;
+        }
       }
-    }
-    break;
+      break;
 
-  case kReader_Operation_Write:
-    if (tlv.GetValue(int_to_hex(kReader_Reader_Key_Request), &RKR) == TLV_OK) {
-      LOG(I, "SET READER KEY REQUEST");
-      int ret = set_reader_key(RKR);
-      if (ret == 0) {
-        LOG(I, "READER KEY SAVED TO NVS, COMPOSING RESPONSE");
-        size_t out_len = 0;
-        BerTlv rkResSubTlv;
-        rkResSubTlv.Add(int_to_hex(kReader_Res_Status), 0);
-        LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", rkResSubTlv.GetTlv().size(), rkResSubTlv.GetTlvAsHexString().c_str());
-        BerTlv rkResTlv;
-        rkResTlv.Add(int_to_hex(kReader_Res_Reader_Key_Response), rkResSubTlv.GetTlv());
-        LOG(D, "TLV LENGTH: %d, DATA: %s", rkResTlv.GetTlv().size(), rkResTlv.GetTlvAsHexString().c_str());
-        mbedtls_base64_encode(NULL, 0, &out_len, rkResTlv.GetTlv().data(), rkResTlv.GetTlv().size());
-        std::vector<uint8_t> resB64(out_len + 1);
-        int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, rkResTlv.GetTlv().data(), rkResTlv.GetTlv().size());
-        resB64[out_len] = '\0';
-        LOG(D, "B64 ENC STATUS: %d", ret);
-        LOG(I, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
-        return resB64;
+    case kReader_Operation_Write:
+      if (tlv.GetValue(int_to_hex(kReader_Reader_Key_Request), &RKR) == TLV_OK) {
+        LOG(I, "SET READER KEY REQUEST");
+        int ret = set_reader_key(RKR);
+        if (ret == 0) {
+          LOG(I, "READER KEY SAVED TO NVS, COMPOSING RESPONSE");
+          size_t out_len = 0;
+          BerTlv rkResSubTlv;
+          rkResSubTlv.Add(int_to_hex(kReader_Res_Status), std::to_string(0));
+          LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", rkResSubTlv.GetTlv().size(), rkResSubTlv.GetTlvAsHexString().c_str());
+          BerTlv rkResTlv;
+          rkResTlv.Add(int_to_hex(kReader_Res_Reader_Key_Response), rkResSubTlv.GetTlv());
+          LOG(D, "TLV LENGTH: %d, DATA: %s", rkResTlv.GetTlv().size(), rkResTlv.GetTlvAsHexString().c_str());
+          mbedtls_base64_encode(NULL, 0, &out_len, rkResTlv.GetTlv().data(), rkResTlv.GetTlv().size());
+          std::vector<uint8_t> resB64(out_len + 1);
+          int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, rkResTlv.GetTlv().data(), rkResTlv.GetTlv().size());
+          resB64[out_len] = '\0';
+          LOG(D, "B64 ENC STATUS: %d", ret);
+          LOG(I, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
+          return resB64;
+        }
       }
-    }
-    else if (tlv.GetValue(int_to_hex(kReader_Device_Credential_Request), &DCR) == TLV_OK) {
-      LOG(D, "PROVISION DEVICE CREDENTIAL REQUEST");
-      std::tuple<uint8_t*, int> state = provision_device_cred(DCR);
-      if (std::get<1>(state) != 99 && std::get<0>(state) != NULL) {
-        size_t out_len = 0;
-        BerTlv dcrResSubTlv;
-        dcrResSubTlv.Add(int_to_hex(kDevice_Res_Issuer_Key_Identifier), std::vector<uint8_t>{std::get<0>(state), std::get<0>(state) + 8});
-        dcrResSubTlv.Add(int_to_hex(kDevice_Res_Status), int_to_hex(std::get<1>(state)));
-        LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", dcrResSubTlv.GetTlv().size(), dcrResSubTlv.GetTlvAsHexString().c_str());
-        BerTlv dcrResTlv;
-        dcrResTlv.Add(int_to_hex(kDevice_Credential_Response), dcrResSubTlv.GetTlv());
-        LOG(D, "TLV LENGTH: %d, DATA: %s", dcrResTlv.GetTlv().size(), dcrResTlv.GetTlvAsHexString().c_str());
-        mbedtls_base64_encode(NULL, 0, &out_len, dcrResTlv.GetTlv().data(), dcrResTlv.GetTlv().size());
-        std::vector<uint8_t> resB64(out_len + 1);
-        int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, dcrResTlv.GetTlv().data(), dcrResTlv.GetTlv().size());
-        resB64[out_len] = '\0';
-        LOG(D, "B64 ENC STATUS: %d", ret);
-        LOG(I, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
-        return resB64;
+      else if (tlv.GetValue(int_to_hex(kReader_Device_Credential_Request), &DCR) == TLV_OK) {
+        LOG(D, "PROVISION DEVICE CREDENTIAL REQUEST");
+        std::tuple<uint8_t*, int> state = provision_device_cred(DCR);
+        if (std::get<1>(state) != 99 && std::get<0>(state) != NULL) {
+          size_t out_len = 0;
+          BerTlv dcrResSubTlv;
+          dcrResSubTlv.Add(int_to_hex(kDevice_Res_Issuer_Key_Identifier), std::vector<uint8_t>{std::get<0>(state), std::get<0>(state) + 8});
+          dcrResSubTlv.Add(int_to_hex(kDevice_Res_Status), int_to_hex(std::get<1>(state)));
+          LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", dcrResSubTlv.GetTlv().size(), dcrResSubTlv.GetTlvAsHexString().c_str());
+          BerTlv dcrResTlv;
+          dcrResTlv.Add(int_to_hex(kDevice_Credential_Response), dcrResSubTlv.GetTlv());
+          LOG(D, "TLV LENGTH: %d, DATA: %s", dcrResTlv.GetTlv().size(), dcrResTlv.GetTlvAsHexString().c_str());
+          mbedtls_base64_encode(NULL, 0, &out_len, dcrResTlv.GetTlv().data(), dcrResTlv.GetTlv().size());
+          std::vector<uint8_t> resB64(out_len + 1);
+          int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, dcrResTlv.GetTlv().data(), dcrResTlv.GetTlv().size());
+          resB64[out_len] = '\0';
+          LOG(D, "B64 ENC STATUS: %d", ret);
+          LOG(I, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
+          return resB64;
+        }
       }
+      break;
+    case kReader_Operation_Remove:
+      if (tlv.GetValue(int_to_hex(kReader_Reader_Key_Request), &RKR) == TLV_OK) {
+        LOG(I, "REMOVE READER KEY REQUEST");
+        std::fill(readerData.reader_identifier, readerData.reader_identifier + 8, 0);
+        std::fill(readerData.reader_private_key, readerData.reader_private_key + 32, 0);
+        save_to_nvs();
+        const char* res = "BwMCAQA=";
+        size_t resLen = 9;
+        LOG(I, "RESPONSE LENGTH: %d, DATA: %s", resLen, res);
+        return std::vector<uint8_t>(res, res+sizeof(res));
+      }
+      break;
+    default:
+      break;
     }
-    break;
-  case kReader_Operation_Remove:
-    if (tlv.GetValue(int_to_hex(kReader_Reader_Key_Request), &RKR) == TLV_OK) {
-      LOG(I, "REMOVE READER KEY REQUEST");
-      std::fill(readerData.reader_identifier, readerData.reader_identifier + 8, 0);
-      std::fill(readerData.reader_private_key, readerData.reader_private_key + 32, 0);
-      save_to_nvs();
-      const char* res = "BwMCAQA=";
-      size_t resLen = 9;
-      LOG(I, "RESPONSE LENGTH: %d, DATA: %s", resLen, res);
-      return std::vector<uint8_t>(res, res+sizeof(res));
-    }
-    break;
-  default:
-    break;
   }
   return std::vector<uint8_t>();
 }
@@ -161,29 +163,31 @@ std::tuple<uint8_t*, int> HK_HomeKit::provision_device_cred(std::vector<uint8_t>
 int HK_HomeKit::set_reader_key(std::vector<uint8_t> buf) {
   LOG(D, "Setting reader key: %s", utils::bufToHexString(buf.data(), buf.size()).c_str());
   BerTlv rkrTLv;
+  rkrTLv.SetTlv(buf);
   std::vector<uint8_t> readerKey;
-  rkrTLv.GetValue(int_to_hex(kReader_Req_Reader_Private_Key), &readerKey);
   std::vector<uint8_t> uniqueIdentifier;
-  rkrTLv.GetValue(int_to_hex(kReader_Req_Identifier), &uniqueIdentifier);
-  LOG(D, "Reader Key: %s", utils::bufToHexString(readerKey.data(), readerKey.size()).c_str());
-  LOG(D, "UniqueIdentifier: %s", utils::bufToHexString(uniqueIdentifier.data(), uniqueIdentifier.size()).c_str());
-  std::vector<uint8_t> pubKey = getPublicKey(readerKey.data(), readerKey.size());
-  LOG(D, "Got reader public key: %s", utils::bufToHexString(pubKey.data(), pubKey.size()).c_str());
-  std::vector<uint8_t> x_coordinate = get_x(pubKey.data(), pubKey.size());
-  LOG(D, "Got X coordinate: %s", utils::bufToHexString(x_coordinate.data(), x_coordinate.size()).c_str());
-  memcpy(readerData.reader_key_x, x_coordinate.data(), x_coordinate.size());
-  memcpy(readerData.reader_public_key, pubKey.data(), pubKey.size());
-  memcpy(readerData.reader_private_key, readerKey.data(), readerKey.size());
-  memcpy(readerData.identifier, uniqueIdentifier.data(), uniqueIdentifier.size());
-  std::vector<uint8_t> readeridentifier = utils::getHashIdentifier(readerData.reader_private_key, sizeof(readerData.reader_private_key), true);
-  LOG(D, "Reader GroupIdentifier: %s", utils::bufToHexString(readeridentifier.data(), 8).c_str());
-  memcpy(readerData.reader_identifier, readeridentifier.data(), 8);
-  bool nvs = save_to_nvs();
-  if (nvs) {
-    return 0;
+  if (rkrTLv.GetValue(int_to_hex(kReader_Req_Reader_Private_Key), &readerKey) == TLV_OK && rkrTLv.GetValue(int_to_hex(kReader_Req_Identifier), &uniqueIdentifier) == TLV_OK) {
+    LOG(D, "Reader Key: %s", utils::bufToHexString(readerKey.data(), readerKey.size()).c_str());
+    LOG(D, "UniqueIdentifier: %s", utils::bufToHexString(uniqueIdentifier.data(), uniqueIdentifier.size()).c_str());
+    std::vector<uint8_t> pubKey = getPublicKey(readerKey.data(), readerKey.size());
+    LOG(D, "Got reader public key: %s", utils::bufToHexString(pubKey.data(), pubKey.size()).c_str());
+    std::vector<uint8_t> x_coordinate = get_x(pubKey.data(), pubKey.size());
+    LOG(D, "Got X coordinate: %s", utils::bufToHexString(x_coordinate.data(), x_coordinate.size()).c_str());
+    memcpy(readerData.reader_key_x, x_coordinate.data(), x_coordinate.size());
+    memcpy(readerData.reader_public_key, pubKey.data(), pubKey.size());
+    memcpy(readerData.reader_private_key, readerKey.data(), readerKey.size());
+    memcpy(readerData.identifier, uniqueIdentifier.data(), uniqueIdentifier.size());
+    std::vector<uint8_t> readeridentifier = utils::getHashIdentifier(readerData.reader_private_key, sizeof(readerData.reader_private_key), true);
+    LOG(D, "Reader GroupIdentifier: %s", utils::bufToHexString(readeridentifier.data(), 8).c_str());
+    memcpy(readerData.reader_identifier, readeridentifier.data(), 8);
+    bool nvs = save_to_nvs();
+    if (nvs) {
+      return 0;
+    }
+    else
+      return -1;
   }
-  else
-    return 1;
+  return -1;
 }
 
 bool HK_HomeKit::save_to_nvs() {
