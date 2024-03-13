@@ -3,9 +3,11 @@
 
 std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsigned char> &env1Data, std::vector<unsigned char> &readerCmd)
 {
-  auto env1ResTlv = BERTLV::unpack_array(env1Data);
-  auto env1Ndef = BERTLV::findTag(kNDEF_MESSAGE, env1ResTlv);
-  NDEFMessage ndefEnv1Ctx = NDEFMessage(env1Ndef.value.data(), env1Ndef.value.size());
+  BerTlv env1ResTlv;
+  env1ResTlv.SetTlv(env1Data);
+  std::vector<uint8_t> env1Ndef;
+  env1ResTlv.GetValue(int_to_hex(kNDEF_MESSAGE), &env1Ndef);
+  NDEFMessage ndefEnv1Ctx = NDEFMessage(env1Ndef.data(), env1Ndef.size());
   auto ndefEnv1Data = ndefEnv1Ctx.unpack();
   auto ndefEnv1Pack = ndefEnv1Ctx.pack();
   NDEFRecord *res_eng = ndefEnv1Ctx.findType("iso.org:18013:deviceengagement");
@@ -16,7 +18,7 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
   readerNdef.encode(readerCmd.data(), readerCmd.size());
   LOG(V, "READER NDEF CBOR: %s", utils::bufToHexString(readerNdef.to_CBOR(), readerNdef.length()).c_str());
   CBOR deviceNdef = CBOR();
-  deviceNdef.encode(env1Ndef.value.data(), env1Ndef.value.size());
+  deviceNdef.encode(env1Ndef.data(), env1Ndef.size());
   LOG(V, "DEVICE NDEF CBOR: %s", utils::bufToHexString(deviceNdef.to_CBOR(), deviceNdef.length()).c_str());
 
   CBOR tag1 = CBOR(24, deviceEngagement);
@@ -129,9 +131,13 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
     }
     delete[] env2Res;
     LOG(V, "ATT PKG LENGTH: %d - DATA: %s", attestation_package.size(), utils::bufToHexString(attestation_package.data(), attestation_package.size()).c_str());
-    std::vector<BERTLV> data = BERTLV::unpack_array(attestation_package);
-    if(BERTLV::findTag(0x90, data).tag.size() > 0){
-      auto decrypted_message = secureCtx.decryptMessageFromEndpoint(BERTLV::findTag(0x53, data).value);
+    BerTlv data;
+    data.SetTlv(attestation_package);
+    std::vector<uint8_t> status;
+    if (data.GetValue("90", &status) == TLV_OK) {
+      std::vector<uint8_t> encryptedMessage;
+      data.GetValue("53", &encryptedMessage);
+      auto decrypted_message = secureCtx.decryptMessageFromEndpoint(encryptedMessage);
       if(decrypted_message.size() > 0){
         return decrypted_message;
       }

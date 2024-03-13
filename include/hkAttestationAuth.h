@@ -1,13 +1,16 @@
 #include <CommonCryptoUtils.h>
 #include <tuple>
 #include "HomeKey.h"
-#include <BERTLV.h>
+#include <BerTlv.h>
 #include <DigitalKeySecureContext.h>
 #include <x963kdf.h>
 #include <ndef.h>
+#include <utils.h>
 #include <ISO18013SecureContext.h>
 
-class HKAttestationAuth : CommonCryptoUtils
+using namespace CommonCryptoUtils;
+using namespace utils;
+class HKAttestationAuth
 {
 private:
   const char *TAG = "HKAttestAuth";

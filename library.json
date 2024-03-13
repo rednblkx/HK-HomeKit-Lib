@@ -1,12 +1,12 @@
 {
-  "name": "HK-HomeKit Lib",
+  "name": "HK-HomeKit-Lib",
   "version": "1.0.0",
   "description": "",
   "keywords": "homekit, nfc",
   "repository":
   {
     "type": "git",
-    "url": "https://github.com/rednblkx/HK-HomeKit"
+    "url": "https://github.com/rednblkx/HK-HomeKit-Lib.git"
   },
   "authors":
   [

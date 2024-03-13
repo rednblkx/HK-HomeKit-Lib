@@ -1,6 +1,5 @@
 #pragma once
 #include <tuple>
-#include <BERTLV.h>
 #include "HomeKey.h"
 #include <DigitalKeySecureContext.h>
 #include <nvs.h>
@@ -9,8 +8,12 @@
 #include <hkFastAuth.h>
 #include <hkStdAuth.h>
 #include <hkAttestationAuth.h>
+#include <BerTlv.h>
 
-class HKAuthenticationContext : CommonCryptoUtils
+using namespace CommonCryptoUtils;
+using namespace utils;
+
+class HKAuthenticationContext
 {
 private:
   const char *TAG = "HKAuthCtx";

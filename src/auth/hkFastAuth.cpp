@@ -88,28 +88,22 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *> HKFastAuth:
  * @return a tuple containing three elements: a pointer to the issuer, a pointer to the endpoint, and a
  * value of the enum type `homeKeyReader::KeyFlow`
  */
-std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, homeKeyReader::KeyFlow> HKFastAuth::attest(uint8_t *data, size_t dataLen)
+std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, homeKeyReader::KeyFlow> HKFastAuth::attest(std::vector<uint8_t> encryptedMessage)
 {
   homeKeyIssuer::issuer_t *issuer = nullptr;
   homeKeyEndpoint::endpoint_t *endpoint = nullptr;
-  if (data[dataLen - 2] == 0x90 && data[0] == 0x86)
+  auto foundData = find_endpoint_by_cryptogram(encryptedMessage);
+  endpoint = std::get<1>(foundData);
+  issuer = std::get<0>(foundData);
+  if (endpoint != nullptr)
   {
-    auto Auth0Res = BERTLV::unpack_array(data, dataLen);
-    auto encryptedMessage = BERTLV::findTag(kAuth0_Cryptogram, Auth0Res);
-    auto foundData = find_endpoint_by_cryptogram(encryptedMessage.value);
-    endpoint = std::get<1>(foundData);
-    issuer = std::get<0>(foundData);
-    if (endpoint != nullptr)
-    {
-      LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(endpoint->endpointId, sizeof(endpoint->endpointId), true).c_str());
-      return std::make_tuple(issuer, endpoint, homeKeyReader::kFlowFAST);
-    }
-    else
-    {
-      LOG(W, "FAST Flow failed!");
-      return std::make_tuple(issuer, endpoint, homeKeyReader::kFlowSTANDARD);
-    }
+    LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(endpoint->endpointId, sizeof(endpoint->endpointId), true).c_str());
+    return std::make_tuple(issuer, endpoint, homeKeyReader::kFlowFAST);
   }
-  LOG(E, "Response not valid, something went wrong!");
+  else
+  {
+    LOG(W, "FAST Flow failed!");
+    return std::make_tuple(issuer, endpoint, homeKeyReader::kFlowSTANDARD);
+  }
   return std::make_tuple(issuer, endpoint, homeKeyReader::kFlowFailed);
 }

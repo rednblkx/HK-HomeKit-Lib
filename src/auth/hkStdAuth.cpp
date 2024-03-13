@@ -106,22 +106,18 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
     LOG(D, "Decrypted Length: %d, Data: %s", response_result.size(), utils::bufToHexString(response_result.data(), response_result.size()).c_str());
     if (response_result.size() > 0)
     {
-      std::vector<BERTLV> decryptedTlv = BERTLV::unpack_array(std::vector<unsigned char>{response_result.data(), response_result.data() + response_result.size()});
-      BERTLV *signature = nullptr;
-      BERTLV *device_identifier = nullptr;
-      for (auto &data : decryptedTlv)
+      BerTlv decryptedTlv;
+      decryptedTlv.SetTlv(response_result);
+      LOG(D, "TLV DATA: %s", decryptedTlv.GetTlvAsHexString().c_str());
+      std::vector<uint8_t> signature;
+      std::vector<uint8_t> device_identifier;
+      decryptedTlv.GetValue("4E", &device_identifier);
+      decryptedTlv.GetValue("9E", &signature);
+      LOG(D, "Device Identifier: %s", utils::bufToHexString(device_identifier.data(), device_identifier.size()).c_str());
+      LOG(D, "Signature: %s", utils::bufToHexString(signature.data(), signature.size()).c_str());
+      if (device_identifier.size() == 0)
       {
-        if (data.tag.data()[0] == 0x4E)
-        {
-          device_identifier = &data;
-        }
-        if (data.tag.data()[0] == 0x9E)
-        {
-          signature = &data;
-        }
-      }
-      if (device_identifier == nullptr)
-      {
+        LOG(E, "TLV DATA INVALID!");
         // commandFlow(homeKeyReader::kCmdFlowFailed);
         return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowFailed);
       }
@@ -129,7 +125,7 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
       {
         for (auto &endpoint : issuer.endpoints)
         {
-          if (!memcmp(endpoint.endpointId, device_identifier->value.data(), 6))
+          if (!memcmp(endpoint.endpointId, device_identifier.data(), 6))
           {
             LOG(D, "STD_AUTH: Found Matching Endpoint, ID: %s", utils::bufToHexString(endpoint.endpointId, sizeof(endpoint.endpointId)).c_str());
             foundEndpoint = &endpoint;
@@ -164,8 +160,8 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
         int pubImport = mbedtls_ecp_point_read_binary(&keypair.grp, &keypair.Q, foundEndpoint->publicKey, sizeof(foundEndpoint->publicKey));
         LOG(V, "public key import result: %d", pubImport);
 
-        mbedtls_mpi_read_binary(&r, signature->value.data(), signature->value.size() / 2);
-        mbedtls_mpi_read_binary(&s, signature->value.data() + (signature->value.size() / 2), signature->value.size() / 2);
+        mbedtls_mpi_read_binary(&r, signature.data(), signature.size() / 2);
+        mbedtls_mpi_read_binary(&s, signature.data() + (signature.size() / 2), signature.size() / 2);
 
         int result = mbedtls_ecdsa_verify(&keypair.grp, hash, 32, &keypair.Q, &r, &s);
 
@@ -180,7 +176,7 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
         {
           return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowSTANDARD);
         }
-        else if (device_identifier->tag.size() > 0)
+        else if (device_identifier.size() > 0)
         {
           return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowATTESTATION);
         }

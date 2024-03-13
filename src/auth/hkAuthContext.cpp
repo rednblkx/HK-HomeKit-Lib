@@ -23,7 +23,7 @@ HKAuthenticationContext::HKAuthenticationContext(bool (*nfcInDataExchange)(uint8
   auto stopTime = std::chrono::high_resolution_clock::now();
   endpointEphX = std::vector<uint8_t>();
   endpointEphPubKey = std::vector<uint8_t>();
-  LOG(I, "Initialization Time: %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(stopTime - startTime).count());
+  LOG(D, "Initialization Time: %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(stopTime - startTime).count());
 }
 
 /**
@@ -62,22 +62,26 @@ std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext
   nfcInDataExchange(apdu.data(), apdu.size(), response, &responseLength);
   LOG(D, "Auth0 Response Length: %d, DATA: %s", responseLength, utils::bufToHexString(response, responseLength).c_str());
   if (responseLength > 64 && response[0] == 0x86) {
-    auto Auth0Res = BERTLV::unpack_array(response, responseLength);
-    auto endpointPubKey = BERTLV::findTag(kEndpoint_Public_Key, Auth0Res);
-    endpointEphPubKey = std::move(endpointPubKey.value);
+    BerTlv Auth0Res;
+    Auth0Res.SetTlv(std::vector<uint8_t>{response, response + responseLength});
+    std::vector<uint8_t> endpointPubKey;
+    Auth0Res.GetValue(int_to_hex(kEndpoint_Public_Key), &endpointPubKey);
+    endpointEphPubKey = std::move(endpointPubKey);
     endpointEphX = std::move(get_x(endpointEphPubKey));
     homeKeyIssuer::issuer_t *foundIssuer = nullptr;
     homeKeyEndpoint::endpoint_t *foundEndpoint = nullptr;
     std::vector<uint8_t> persistentKey;
     homeKeyReader::KeyFlow flowUsed = homeKeyReader::kFlowFailed;
-    if(hkFlow == homeKeyReader::kFlowFAST){
-      auto fastAuth = HKFastAuth(*readerData.reader_key_x, readerData.issuers, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier).attest(response, responseLength);
+    if (hkFlow == homeKeyReader::kFlowFAST) {
+      std::vector<uint8_t> encryptedMessage;
+      Auth0Res.GetValue(int_to_hex(kAuth0_Cryptogram), &encryptedMessage);
+      auto fastAuth = HKFastAuth(*readerData.reader_key_x, readerData.issuers, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier).attest(encryptedMessage);
       if (std::get<1>(fastAuth) != nullptr && std::get<2>(fastAuth) != homeKeyReader::kFlowFailed)
       {
         foundIssuer = std::get<0>(fastAuth);
         foundEndpoint = std::get<1>(fastAuth);
         flowUsed = std::get<2>(fastAuth);
-        LOG(I, "Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
+        LOG(I, "FAST flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
         LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(foundEndpoint->endpointId, sizeof(foundEndpoint->endpointId), true).c_str());
       }
     }
@@ -89,7 +93,7 @@ std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext
         if (std::get<4>(stdAuth) != homeKeyReader::kFlowFailed)
         {
           flowUsed = std::get<4>(stdAuth);
-          LOG(I, "Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
+          LOG(I, "STANDARD Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
           LOG(D, "Endpoint %s Authenticated via STANDARD Flow", utils::bufToHexString(foundEndpoint->endpointId, sizeof(foundEndpoint->endpointId), true).c_str());
           persistentKey = std::get<3>(stdAuth);
           memcpy(foundEndpoint->persistent_key, persistentKey.data(), 32);
@@ -107,7 +111,7 @@ std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext
           std::vector<uint8_t> eId = utils::getHashIdentifier(devicePubKey.data(), devicePubKey.size(), false);
           std::move(eId.begin(), eId.end(), endpoint.endpointId);
           std::move(devicePubKey.begin(), devicePubKey.end(), endpoint.publicKey);
-          LOG(I, "Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
+          LOG(I, "ATTESTATION Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
           LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", utils::bufToHexString(endpoint.endpointId, sizeof(endpoint.endpointId), true).c_str());
           persistentKey = std::get<3>(stdAuth);
           flowUsed = std::get<1>(attestation);
@@ -141,7 +145,8 @@ std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext
       }
     }
   }
-  return std::make_tuple(static_cast<uint8_t *>(nullptr), static_cast<uint8_t *>(nullptr), homeKeyReader::kFlowFailed);
+  LOG(E, "Response not valid, something went wrong!");
+  return std::make_tuple(static_cast<uint8_t*>(nullptr), static_cast<uint8_t*>(nullptr), homeKeyReader::kFlowFailed);
 }
 
 /**
