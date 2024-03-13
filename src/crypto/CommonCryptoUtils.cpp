@@ -231,8 +231,15 @@ std::vector<uint8_t> CommonCryptoUtils::getPublicKey(uint8_t *privKey, size_t le
   mbedtls_ecp_keypair_init(&keypair);
   int ecp_key = mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP256R1, &keypair, privKey, len);
   int ret = mbedtls_ecp_mul(&keypair.grp, &keypair.Q, &keypair.d, &keypair.grp.G, esp_rng, NULL);
-
-  size_t olenPub = 0;
+  if(ecp_key != 0){
+    LOG(E, "ecp_write_1 - %s", mbedtls_high_level_strerr(ecp_key));
+    return std::vector<uint8_t>();
+  }
+  if (ret != 0) {
+    LOG(E, "mbedtls_ecp_mul - %s", mbedtls_high_level_strerr(ret));
+    return std::vector<uint8_t>();
+  }
+    size_t olenPub = 0;
   std::vector<uint8_t> readerPublicKey(MBEDTLS_ECP_MAX_BYTES);
   mbedtls_ecp_point_write_binary(&keypair.grp, &keypair.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olenPub, readerPublicKey.data(), readerPublicKey.capacity());
   readerPublicKey.resize(olenPub);
