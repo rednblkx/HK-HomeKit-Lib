@@ -18,6 +18,7 @@ class HKAuthenticationContext
 private:
   const char *TAG = "HKAuthCtx";
   homeKeyReader::readerData_t &readerData;
+  nvs_handle &savedData;
   std::vector<uint8_t> readerEphX;
   std::vector<uint8_t> readerEphPrivKey;
   std::vector<uint8_t> readerEphPubKey;
@@ -29,6 +30,6 @@ private:
   std::vector<uint8_t> commandFlow(homeKeyReader::CommandFlowStatus status);
 
 public:
-  HKAuthenticationContext(bool (*nfcInDataExchange)(uint8_t *data, size_t lenData, uint8_t *res, uint8_t *resLen), homeKeyReader::readerData_t &readerData);
-  std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> authenticate(int, nvs_handle &);
+  HKAuthenticationContext(bool (*nfcInDataExchange)(uint8_t *data, size_t lenData, uint8_t *res, uint8_t *resLen), homeKeyReader::readerData_t &readerData, nvs_handle &savedData);
+  std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> authenticate(homeKeyReader::KeyFlow);
 };

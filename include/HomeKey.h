@@ -186,7 +186,7 @@ namespace homeKeyReader
     kFlowFAST = 0x00,
     kFlowSTANDARD = 0x01,
     kFlowATTESTATION = 0x02,
-    kFlowFailed = 0x99
+    kFlowFailed = -1
   } KeyFlow;
   typedef enum
   {

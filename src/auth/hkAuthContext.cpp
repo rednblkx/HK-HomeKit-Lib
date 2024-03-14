@@ -1,13 +1,19 @@
 #include <hkAuthContext.h>
+
 /**
- * The HKAuthenticationContext constructor initializes various member variables and generates an
- * ephemeral key for the reader.
- * 
- * @param nfcInDataExchange nfcInDataExchange is a function pointer that points to a function with the
- * following signature: bool (*)(uint8_t *data, size_t lenData, uint8_t *res, uint8_t *resLen)
- * @param readerData readerData is a reference to an object of type homeKeyReader::readerData_t.
+ * The HKAuthenticationContext constructor generates an ephemeral key for the reader and initializes
+ * core variables
+ *
+ * @param nfcInDataExchange The `nfcInDataExchange` parameter is a function pointer that points to a
+ * function responsible for exchanging data with an NFC device. It takes input data, its length, and
+ * returns a response along with the response length.
+ * @param readerData The `readerData` parameter is a reference to an object of type
+ * `homeKeyReader::readerData_t`.
+ * @param savedData The `savedData` parameter in the `HKAuthenticationContext` constructor is of type
+ * `nvs_handle`, which is a handle to a Non-Volatile Storage (NVS) namespace in ESP-IDF
+ * (Espressif IoT Development Framework). This handle is used to access and manipulate data stored.
  */
-HKAuthenticationContext::HKAuthenticationContext(bool (*nfcInDataExchange)(uint8_t *data, size_t lenData, uint8_t *res, uint8_t *resLen), homeKeyReader::readerData_t &readerData) : readerData(readerData), nfcInDataExchange(nfcInDataExchange)
+HKAuthenticationContext::HKAuthenticationContext(bool (*nfcInDataExchange)(uint8_t *data, size_t lenData, uint8_t *res, uint8_t *resLen), homeKeyReader::readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfcInDataExchange(nfcInDataExchange)
 {
   auto startTime = std::chrono::high_resolution_clock::now();
   auto readerEphKey = generateEphemeralKey();
@@ -27,21 +33,17 @@ HKAuthenticationContext::HKAuthenticationContext(bool (*nfcInDataExchange)(uint8
 }
 
 /**
- * The function `HKAuthenticationContext::authenticate` performs authentication using various
- * parameters and returns the result along with the authentication flow type.
+ * The function `authenticate` in the `HKAuthenticationContext` class processes authentication data and
+ * returns the issuer and endpoint IDs along with the authentication flow type.
  * 
- * @param defaultToStd The parameter "defaultToStd" is a boolean flag that determines whether the
- * authentication process should default to the standard flow.
- * @param savedData The parameter `savedData` is a reference to an `nvs_handle` object. It is used to
- * store and retrieve data in the Non-Volatile Storage (NVS) of the device. The NVS is a key-value
- * storage system that allows persistent storage of data even when the device is
+ * @param hkFlow The `hkFlow` parameter in the `authenticate` function is an integer that determines
+ * the type of HomeKey flow to be used for authentication. It can have the following values defined in
+ * the `homeKeyReader::KeyFlow` enum: kFlowFAST, kFlowSTANDARD and kFlowATTESTATION
  * 
- * @return a tuple containing three elements:
- * 1. A pointer to a uint8_t array.
- * 2. A pointer to a uint8_t array.
- * 3. An enum value of type `homeKeyReader::KeyFlow`.
+ * @return A tuple containing the matching `issuerId` and `endpointId`, and the successful flow from
+ * the enum `homeKeyReader::KeyFlow`.
  */
-std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext::authenticate(int hkFlow, nvs_handle &savedData){
+std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext::authenticate(homeKeyReader::KeyFlow hkFlow){
   auto startTime = std::chrono::high_resolution_clock::now();
   uint8_t prot_v_data[2] = {0x02, 0x0};
 
@@ -56,17 +58,16 @@ std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext
   utils::simple_tlv(0x4D, readerIdentifier.data(), readerIdentifier.size(), fastTlv.data() + len, &len);
   std::vector<uint8_t> apdu{0x80, 0x80, 0x01, 0x01, (uint8_t)len};
   apdu.insert(apdu.begin() + 5, fastTlv.begin(), fastTlv.end());
-  uint8_t response[128];
-  uint8_t responseLength = 128;
+  std::vector<uint8_t> response(90);
+  uint8_t responseLength = 90;
   LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), utils::bufToHexString(apdu.data(), apdu.size()).c_str());
-  nfcInDataExchange(apdu.data(), apdu.size(), response, &responseLength);
-  LOG(D, "Auth0 Response Length: %d, DATA: %s", responseLength, utils::bufToHexString(response, responseLength).c_str());
+  nfcInDataExchange(apdu.data(), apdu.size(), response.data(), &responseLength);
+  response.resize(responseLength);
+  LOG(D, "Auth0 Response Length: %d, DATA: %s", responseLength, utils::bufToHexString(response.data(), responseLength).c_str());
   if (responseLength > 64 && response[0] == 0x86) {
     BerTlv Auth0Res;
-    Auth0Res.SetTlv(std::vector<uint8_t>{response, response + responseLength});
-    std::vector<uint8_t> endpointPubKey;
-    Auth0Res.GetValue(int_to_hex(kEndpoint_Public_Key), &endpointPubKey);
-    endpointEphPubKey = std::move(endpointPubKey);
+    Auth0Res.SetTlv(response);
+    Auth0Res.GetValue(int_to_hex(kEndpoint_Public_Key), &endpointEphPubKey);
     endpointEphX = std::move(get_x(endpointEphPubKey));
     homeKeyIssuer::issuer_t *foundIssuer = nullptr;
     homeKeyEndpoint::endpoint_t *foundEndpoint = nullptr;
@@ -120,6 +121,14 @@ std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext
           foundEndpoint = &*foundIssuer->endpoints.insert(foundIssuer->endpoints.end(),endpoint);
         }
       }
+      if(flowUsed >= homeKeyReader::kFlowSTANDARD && persistentKey.size() > 0){
+        json serializedData = readerData;
+        auto msgpack = json::to_msgpack(serializedData);
+        esp_err_t set_nvs = nvs_set_blob(savedData, "READERDATA", msgpack.data(), msgpack.size());
+        esp_err_t commit_nvs = nvs_commit(savedData);
+        LOG(V, "NVS SET STATUS: %s", esp_err_to_name(set_nvs));
+        LOG(V, "NVS COMMIT STATUS: %s", esp_err_to_name(commit_nvs));
+      }
     }
     if(foundEndpoint != nullptr && flowUsed != homeKeyReader::kFlowFailed) {
       std::vector<uint8_t> cmdFlowStatus;
@@ -130,14 +139,6 @@ std::tuple<uint8_t *, uint8_t *, homeKeyReader::KeyFlow> HKAuthenticationContext
       }
       if (flowUsed == homeKeyReader::kFlowATTESTATION || cmdFlowStatus.data()[0] == 0x90)
       {
-        if(flowUsed == homeKeyReader::kFlowSTANDARD && persistentKey.size() > 0 || flowUsed == homeKeyReader::kFlowATTESTATION){
-          json serializedData = readerData;
-          auto msgpack = json::to_msgpack(serializedData);
-          esp_err_t set_nvs = nvs_set_blob(savedData, "READERDATA", msgpack.data(), msgpack.size());
-          esp_err_t commit_nvs = nvs_commit(savedData);
-          LOG(V, "NVS SET STATUS: %s", esp_err_to_name(set_nvs));
-          LOG(V, "NVS COMMIT STATUS: %s", esp_err_to_name(commit_nvs));
-        }
         return std::make_tuple(foundIssuer->issuerId, foundEndpoint->endpointId, flowUsed);
       } else {
         LOG(E, "Control Flow Response not 0x90!, %s", utils::bufToHexString(cmdFlowStatus.data(), cmdFlowStatus.size()).c_str());

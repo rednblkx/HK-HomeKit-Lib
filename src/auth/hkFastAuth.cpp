@@ -44,7 +44,7 @@ void HKFastAuth::Auth0_keying_material(const char *context, const uint8_t *ePub_
  * The function `find_endpoint_by_cryptogram` searches for an endpoint in a list of issuers based on a
  * given cryptogram.
  *
- * @param cryptogram The parameter "cryptogram" is a vector of uint8_t, which represents a cryptogram.
+ * @param cryptogram The parameter "cryptogram" is a vector of uint8_t, which represents the cryptogram received in the Auth0 response.
  *
  * @return a pointer to an object of type `homeKeyEndpoint::endpoint_t`.
  */
@@ -78,32 +78,27 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *> HKFastAuth:
 }
 
 /**
- * Performs a fast authentication process using the given data and returns the
- * issuer, endpoint, and key flow status.
- *
- * @param data A pointer to an array of uint8_t (unsigned 8-bit integers) representing a TLV object
- * that should contain the endpoint's public key and a cryptogram
- * @param dataLen Length of the `data` array
- *
- * @return a tuple containing three elements: a pointer to the issuer, a pointer to the endpoint, and a
- * value of the enum type `homeKeyReader::KeyFlow`
+ * The function `attest` in the `HKFastAuth` class performs authentication using FAST Flow and returns
+ * the issuer, endpoint, and key flow type based on the encrypted message provided.
+ * 
+ * @param encryptedMessage The `attest` function takes a vector of uint8_t named `encryptedMessage` as
+ * input. This function processes the encrypted message to authenticate an endpoint using the FAST
+ * flow. If the endpoint is successfully authenticated, it returns a tuple containing the issuer
+ * pointer, endpoint pointer, and the KeyFlow type
+ * 
+ * @return A tuple containing a pointer to the issuer, a pointer to the endpoint, and the KeyFlow type
+ * is being returned. The function first checks if the endpoint is authenticated via FAST Flow, and if
+ * so, it logs the authentication and returns the tuple with the FAST flow type. If the authentication
+ * fails, it logs the failure and returns the tuple with the STANDARD flow type.
  */
-std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, homeKeyReader::KeyFlow> HKFastAuth::attest(std::vector<uint8_t> encryptedMessage)
+std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, homeKeyReader::KeyFlow> HKFastAuth::attest(std::vector<uint8_t> &encryptedMessage)
 {
-  homeKeyIssuer::issuer_t *issuer = nullptr;
-  homeKeyEndpoint::endpoint_t *endpoint = nullptr;
   auto foundData = find_endpoint_by_cryptogram(encryptedMessage);
-  endpoint = std::get<1>(foundData);
-  issuer = std::get<0>(foundData);
-  if (endpoint != nullptr)
+  if (std::get<1>(foundData) != nullptr)
   {
-    LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(endpoint->endpointId, sizeof(endpoint->endpointId), true).c_str());
-    return std::make_tuple(issuer, endpoint, homeKeyReader::kFlowFAST);
+    LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(std::get<1>(foundData)->endpointId, sizeof(std::get<1>(foundData)->endpointId)).c_str());
+    return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), homeKeyReader::kFlowFAST);
   }
-  else
-  {
-    LOG(W, "FAST Flow failed!");
-    return std::make_tuple(issuer, endpoint, homeKeyReader::kFlowSTANDARD);
-  }
-  return std::make_tuple(issuer, endpoint, homeKeyReader::kFlowFailed);
+  LOG(W, "FAST Flow failed!");
+  return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), homeKeyReader::kFlowSTANDARD);
 }
