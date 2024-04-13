@@ -41,7 +41,7 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
           LOG(I, "READER KEY SAVED TO NVS, COMPOSING RESPONSE");
           size_t out_len = 0;
           BerTlv rkResSubTlv;
-          rkResSubTlv.Add(int_to_hex(kReader_Res_Status), std::to_string(0));
+          rkResSubTlv.Add(int_to_hex(kReader_Res_Status), int_to_hex(0));
           LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", rkResSubTlv.GetTlv().size(), rkResSubTlv.GetTlvAsHexString().c_str());
           BerTlv rkResTlv;
           rkResTlv.Add(int_to_hex(kReader_Res_Reader_Key_Response), rkResSubTlv.GetTlv());
@@ -93,7 +93,7 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
       break;
     }
   }
-  return std::vector<uint8_t>();
+  return std::vector<uint8_t>(1,'\0');
 }
 
 std::tuple<uint8_t*, int> HK_HomeKit::provision_device_cred(std::vector<uint8_t> buf) {
