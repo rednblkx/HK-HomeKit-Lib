@@ -7,6 +7,7 @@
 #include <ndef.h>
 #include <utils.h>
 #include <ISO18013SecureContext.h>
+#include <sodium/crypto_sign_ed25519.h>
 
 using namespace CommonCryptoUtils;
 using namespace utils;

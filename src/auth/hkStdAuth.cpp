@@ -156,14 +156,14 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
 
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
-        mbedtls_ecp_group_load(&keypair.grp, MBEDTLS_ECP_DP_SECP256R1);
-        int pubImport = mbedtls_ecp_point_read_binary(&keypair.grp, &keypair.Q, foundEndpoint->publicKey, sizeof(foundEndpoint->publicKey));
+        mbedtls_ecp_group_load(&keypair.private_grp, MBEDTLS_ECP_DP_SECP256R1);
+        int pubImport = mbedtls_ecp_point_read_binary(&keypair.private_grp, &keypair.private_Q, foundEndpoint->publicKey, sizeof(foundEndpoint->publicKey));
         LOG(V, "public key import result: %d", pubImport);
 
         mbedtls_mpi_read_binary(&r, signature.data(), signature.size() / 2);
         mbedtls_mpi_read_binary(&s, signature.data() + (signature.size() / 2), signature.size() / 2);
 
-        int result = mbedtls_ecdsa_verify(&keypair.grp, hash, 32, &keypair.Q, &r, &s);
+        int result = mbedtls_ecdsa_verify(&keypair.private_grp, hash, 32, &keypair.private_Q, &r, &s);
 
         mbedtls_mpi_free(&r);
         mbedtls_mpi_free(&s);

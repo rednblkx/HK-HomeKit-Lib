@@ -1,5 +1,4 @@
 #include <hkAttestationAuth.h>
-#include <sodium/crypto_sign_ed25519.h>
 
 std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsigned char> &env1Data, std::vector<unsigned char> &readerCmd)
 {
@@ -37,7 +36,7 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
   LOG(D, "CBOR MATERIAL DATA: %s", utils::bufToHexString(tag2.get_buffer(), tag2.length()).c_str());
 
   std::vector<uint8_t> salt(32);
-  int shaRet = mbedtls_sha256_ret((const unsigned char *)tag2.get_buffer(), tag2.length(), salt.data(), false);
+  int shaRet = mbedtls_sha256((const unsigned char *)tag2.get_buffer(), tag2.length(), salt.data(), false);
 
   if (shaRet != 0)
   {

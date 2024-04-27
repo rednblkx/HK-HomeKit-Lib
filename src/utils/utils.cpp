@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <list>
 
 namespace utils
 {
@@ -85,19 +86,19 @@ namespace utils
   std::vector<uint8_t> getHashIdentifier(uint8_t* key, size_t len, bool sha256) {
     const char* TAG = "getHashIdentifier";
     ESP_LOGV(TAG, "Key: %s, Length: %d, sha256?: %d", bufToHexString(key, len).c_str(), len, sha256);
-    std::vector<unsigned char> hashable;
+    std::list<unsigned char> hashable;
     if (sha256) {
       std::string string = "key-identifier";
-      hashable.insert(hashable.end(), string.begin(), string.end());
+      hashable.insert(hashable.begin(), string.begin(), string.end());
     }
-    hashable.insert(hashable.end(), key, key + len);
-    ESP_LOGV(TAG, "Hashable: %s", bufToHexString(hashable.data(), hashable.size()).c_str());
+    hashable.insert(hashable.size() == 0 ? hashable.begin() : hashable.end(), key, key + len);
+    ESP_LOGV(TAG, "Hashable: %s", bufToHexString(&hashable.front(), hashable.size()).c_str());
     uint8_t hash[32];
     if (sha256) {
-      mbedtls_sha256(hashable.data(), hashable.size(), hash, 0);
+      mbedtls_sha256(&hashable.front(), hashable.size(), hash, 0);
     }
     else {
-      mbedtls_sha1(hashable.data(), hashable.size(), hash);
+      mbedtls_sha1(&hashable.front(), hashable.size(), hash);
     }
     ESP_LOGD(TAG, "HashIdentifier: %s", bufToHexString(hash, 8).c_str());
     return std::vector<uint8_t>{hash, hash + 8};
