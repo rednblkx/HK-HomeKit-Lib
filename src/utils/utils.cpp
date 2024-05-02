@@ -21,7 +21,7 @@ namespace utils
     if (buf == NULL || buf == nullptr) {
       return result;
     }
-    if (esp_log_level_get("*") >= esp_log_level_t::ESP_LOG_DEBUG || ignoreLevel) {
+    if (esp_log_level_get("*") >= esp_log_level_t::ESP_LOG_INFO || ignoreLevel) {
       result.reserve(2 * len);
       for (size_t i = 0; i < len; ++i) {
         result.push_back("0123456789ABCDEF"[buf[i] >> 4]);
@@ -33,7 +33,7 @@ namespace utils
   }
   std::string bufToHexString(const uint16_t* buf, size_t len, bool ignoreLevel) {
     std::string result;
-    if (esp_log_level_get("*") >= esp_log_level_t::ESP_LOG_DEBUG || ignoreLevel) {
+    if (esp_log_level_get("*") >= esp_log_level_t::ESP_LOG_INFO || ignoreLevel) {
       result.reserve(4 * len); // Reserve space for 4 characters per uint16_t
       for (size_t i = 0; i < len; ++i) {
         result.push_back("0123456789ABCDEF"[(buf[i] >> 12) & 0xF]);
@@ -86,12 +86,12 @@ namespace utils
   std::vector<uint8_t> getHashIdentifier(uint8_t* key, size_t len, bool sha256) {
     const char* TAG = "getHashIdentifier";
     ESP_LOGV(TAG, "Key: %s, Length: %d, sha256?: %d", bufToHexString(key, len).c_str(), len, sha256);
-    std::list<unsigned char> hashable;
+    std::vector<unsigned char> hashable;
     if (sha256) {
       std::string string = "key-identifier";
       hashable.insert(hashable.begin(), string.begin(), string.end());
     }
-    hashable.insert(hashable.size() == 0 ? hashable.begin() : hashable.end(), key, key + len);
+    hashable.insert(hashable.end(), key, key + len);
     ESP_LOGV(TAG, "Hashable: %s", bufToHexString(&hashable.front(), hashable.size()).c_str());
     uint8_t hash[32];
     if (sha256) {

@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+import 'nanopb.proto';
+
+package HomeKeyData;
+
+message Endpoint {
+  bytes ep_id = 1 [(nanopb).max_size = 6, (nanopb).fixed_length = true];
+  uint32 last_used = 2;
+  int32 counter = 3;
+  int32 key_type = 4;
+  bytes ep_pk = 5 [(nanopb).max_size = 65, (nanopb).fixed_length = true];
+  bytes ep_pk_x = 6 [(nanopb).max_size = 32, (nanopb).fixed_length = true];
+  bytes ep_persistent_key = 7 [(nanopb).max_size = 32, (nanopb).fixed_length = true];
+}
+
+message KeyIssuer {
+  bytes issuer_id = 1 [(nanopb).max_size = 8, (nanopb).fixed_length = true];
+  bytes issuer_pk = 2 [(nanopb).max_size = 32, (nanopb).fixed_length = true];
+  bytes issuer_pk_x = 3 [(nanopb).max_size = 32, (nanopb).fixed_length = true];
+  repeated Endpoint endpoints = 4 [(nanopb).max_count = 16];
+}
+
+message ReaderData {
+  bytes reader_sk = 1 [(nanopb).max_size = 32, (nanopb).fixed_length = true];
+  bytes reader_pk = 2 [(nanopb).max_size = 65, (nanopb).fixed_length = true];
+  bytes reader_pk_x = 3 [(nanopb).max_size = 32, (nanopb).fixed_length = true];
+  bytes reader_group_id = 4 [(nanopb).max_size = 8, (nanopb).fixed_length = true];
+  bytes reader_id = 5 [(nanopb).max_size = 8, (nanopb).fixed_length = true];
+  repeated KeyIssuer issuers = 6 [(nanopb).max_count = 16];
+}

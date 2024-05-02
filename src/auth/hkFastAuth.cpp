@@ -46,24 +46,24 @@ void HKFastAuth::Auth0_keying_material(const char *context, const uint8_t *ePub_
  *
  * @param cryptogram The parameter "cryptogram" is a vector of uint8_t, which represents the cryptogram received in the Auth0 response.
  *
- * @return a pointer to an object of type `homeKeyEndpoint::endpoint_t`.
+ * @return a pointer to an object of type `HomeKeyData_Endpoint`.
  */
-std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *> HKFastAuth::find_endpoint_by_cryptogram(std::vector<uint8_t> &cryptogram)
+std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *> HKFastAuth::find_endpoint_by_cryptogram(std::vector<uint8_t> &cryptogram)
 {
-  homeKeyEndpoint::endpoint_t *foundEndpoint = nullptr;
-  homeKeyIssuer::issuer_t *foundIssuer = nullptr;
+  HomeKeyData_Endpoint *foundEndpoint = nullptr;
+  HomeKeyData_KeyIssuer *foundIssuer = nullptr;
   for (auto &&issuer : issuers)
   {
-    LOG(V, "Issuer: %s, Endpoints: %d", utils::bufToHexString(issuer.issuerId, sizeof(issuer.issuerId)).c_str(), issuer.endpoints.size());
+    LOG(V, "Issuer: %s, Endpoints: %d", utils::bufToHexString(issuer.issuer_id, sizeof(issuer.issuer_id)).c_str(), issuer.endpoints_count);
     for (auto &&endpoint : issuer.endpoints)
     {
-      LOG(V, "Endpoint: %s, Persistent Key: %s", utils::bufToHexString(endpoint.endpointId, sizeof(endpoint.endpointId)).c_str(), utils::bufToHexString(endpoint.persistent_key, sizeof(endpoint.persistent_key)).c_str());
+      LOG(V, "Endpoint: %s, Persistent Key: %s", utils::bufToHexString(endpoint.ep_id, sizeof(endpoint.ep_id)).c_str(), utils::bufToHexString(endpoint.ep_persistent_key, sizeof(endpoint.ep_persistent_key)).c_str());
       std::vector<uint8_t> hkdf(58, 0);
-      Auth0_keying_material("VolatileFast", endpoint.endpoint_key_x, endpoint.persistent_key, hkdf.data(), hkdf.size());
+      Auth0_keying_material("VolatileFast", endpoint.ep_pk_x, endpoint.ep_persistent_key, hkdf.data(), hkdf.size());
       LOG(V, "HKDF Derived Key: %s", utils::bufToHexString(hkdf.data(), hkdf.size()).c_str());
       if (!memcmp(hkdf.data(), cryptogram.data(), 16))
       {
-        LOG(D, "Endpoint %s matches cryptogram", utils::bufToHexString(endpoint.endpointId, sizeof(endpoint.endpointId)).c_str());
+        LOG(D, "Endpoint %s matches cryptogram", utils::bufToHexString(endpoint.ep_id, sizeof(endpoint.ep_id)).c_str());
         foundEndpoint = &endpoint;
         foundIssuer = &issuer;
         break;
@@ -91,14 +91,14 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *> HKFastAuth:
  * so, it logs the authentication and returns the tuple with the FAST flow type. If the authentication
  * fails, it logs the failure and returns the tuple with the STANDARD flow type.
  */
-std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, homeKeyReader::KeyFlow> HKFastAuth::attest(std::vector<uint8_t> &encryptedMessage)
+std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, KeyFlow> HKFastAuth::attest(std::vector<uint8_t> &encryptedMessage)
 {
   auto foundData = find_endpoint_by_cryptogram(encryptedMessage);
   if (std::get<1>(foundData) != nullptr)
   {
-    LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(std::get<1>(foundData)->endpointId, sizeof(std::get<1>(foundData)->endpointId)).c_str());
-    return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), homeKeyReader::kFlowFAST);
+    LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(std::get<1>(foundData)->ep_id, sizeof(std::get<1>(foundData)->ep_id)).c_str());
+    return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), kFlowFAST);
   }
   LOG(W, "FAST Flow failed!");
-  return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), homeKeyReader::kFlowSTANDARD);
+  return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), kFlowSTANDARD);
 }

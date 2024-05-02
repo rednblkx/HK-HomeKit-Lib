@@ -13,9 +13,12 @@
   ],
   "license": "MIT",
   "homepage": "",
+  "build": {
+    "extraScript": "extra_script.py"
+  },
   "dependencies": {
     "telecombretagne/YACL": "^1.0.3",
-    "johboh/nlohmann-json": "^3.11.3"
+    "Nanopb": "*"
   },
   "frameworks": ["espidf", "arduino"],
   "platforms": ["espressif8266", "espressif32"]

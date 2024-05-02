@@ -64,13 +64,13 @@ void HKStdAuth::Auth1_keying_material(uint8_t *keyingMaterial, const char *conte
  * Performs authentication using the STANDARD flow.
  * 
  * @return a tuple containing the following elements:
- * 1. A pointer to the issuer object (`homeKeyIssuer::issuer_t*`)
- * 2. A pointer to the endpoint object (`homeKeyEndpoint::endpoint_t*`)
+ * 1. A pointer to the issuer object (`HomeKeyData_KeyIssuer*`)
+ * 2. A pointer to the endpoint object (`HomeKeyData_Endpoint*`)
  * 3. An object of type `DigitalKeySecureContext`
  * 4. A vector of `uint8_t` elements
- * 5. An enum value of type `homeKeyReader::
+ * 5. An enum value of type `KeyFlow`
  */
-std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeySecureContext, std::vector<uint8_t>, homeKeyReader::KeyFlow> HKStdAuth::attest()
+std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, DigitalKeySecureContext, std::vector<uint8_t>, KeyFlow> HKStdAuth::attest()
 {
   // int readerContext = 1096652137;
   uint8_t readerCtx[4]{0x41, 0x5d, 0x95, 0x69};
@@ -92,14 +92,14 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
   uint8_t response[128];
   uint8_t responseLength = 128;
   LOG(D, "Auth1 APDU Length: %d, DATA: %s", apdu.size(), utils::bufToHexString(apdu.data(), apdu.size()).c_str());
-  nfcInDataExchange(apdu.data(), apdu.size(), response, &responseLength);
+  nfc.inDataExchange(apdu.data(), apdu.size(), response, &responseLength);
   LOG(D, "Auth1 Response Length: %d, DATA: %s", responseLength, utils::bufToHexString(response, responseLength).c_str());
   std::vector<uint8_t> persistentKey(32);
   uint8_t volatileKey[48];
   Auth1_keys_generator(persistentKey.data(), volatileKey);
   DigitalKeySecureContext context = DigitalKeySecureContext(volatileKey);
-  homeKeyEndpoint::endpoint_t *foundEndpoint = nullptr;
-  homeKeyIssuer::issuer_t *foundIssuer = nullptr;
+  HomeKeyData_Endpoint *foundEndpoint = nullptr;
+  HomeKeyData_KeyIssuer *foundIssuer = nullptr;
   if (responseLength > 2 && response[responseLength - 2] == 0x90)
   {
     auto response_result = context.decrypt_response(response, responseLength - 2);
@@ -118,16 +118,16 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
       if (device_identifier.size() == 0)
       {
         LOG(E, "TLV DATA INVALID!");
-        // commandFlow(homeKeyReader::kCmdFlowFailed);
-        return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowFailed);
+        // commandFlow(kCmdFlowFailed);
+        return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
       }
       for (auto &issuer : issuers)
       {
         for (auto &endpoint : issuer.endpoints)
         {
-          if (!memcmp(endpoint.endpointId, device_identifier.data(), 6))
+          if (!memcmp(endpoint.ep_id, device_identifier.data(), 6))
           {
-            LOG(D, "STD_AUTH: Found Matching Endpoint, ID: %s", utils::bufToHexString(endpoint.endpointId, sizeof(endpoint.endpointId)).c_str());
+            LOG(D, "STD_AUTH: Found Matching Endpoint, ID: %s", utils::bufToHexString(endpoint.ep_id, sizeof(endpoint.ep_id)).c_str());
             foundEndpoint = &endpoint;
             foundIssuer = &issuer;
           }
@@ -157,7 +157,7 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
         mbedtls_ecp_group_load(&keypair.private_grp, MBEDTLS_ECP_DP_SECP256R1);
-        int pubImport = mbedtls_ecp_point_read_binary(&keypair.private_grp, &keypair.private_Q, foundEndpoint->publicKey, sizeof(foundEndpoint->publicKey));
+        int pubImport = mbedtls_ecp_point_read_binary(&keypair.private_grp, &keypair.private_Q, foundEndpoint->ep_pk, sizeof(foundEndpoint->ep_pk));
         LOG(V, "public key import result: %d", pubImport);
 
         mbedtls_mpi_read_binary(&r, signature.data(), signature.size() / 2);
@@ -174,24 +174,24 @@ std::tuple<homeKeyIssuer::issuer_t *, homeKeyEndpoint::endpoint_t *, DigitalKeyS
 
         if (result == 0)
         {
-          return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowSTANDARD);
+          return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowSTANDARD);
         }
         else if (device_identifier.size() > 0)
         {
-          return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowATTESTATION);
+          return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowATTESTATION);
         }
       }
-      // commandFlow(homeKeyReader::kCmdFlowFailed);
-      return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowFailed);
+      // commandFlow(kCmdFlowFailed);
+      return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
     }
     else
     {
       LOG(W, "STANDARD Flow failed!");
-      // commandFlow(homeKeyReader::kCmdFlowFailed);
-      return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowFailed);
+      // commandFlow(kCmdFlowFailed);
+      return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
     }
   }
   LOG(E, "Response Status not 0x90, something went wrong!");
-  // commandFlow(homeKeyReader::kCmdFlowFailed);
-  return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, homeKeyReader::kFlowFailed);
+  // commandFlow(kCmdFlowFailed);
+  return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
 }
