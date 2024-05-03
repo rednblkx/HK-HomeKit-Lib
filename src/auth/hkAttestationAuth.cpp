@@ -227,10 +227,10 @@ std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector<uint8_t>> 
 
   HomeKeyData_KeyIssuer *foundIssuer = nullptr;
 
-  for (auto &&issuer : issuers)
+  for (auto *issuer = issuers; issuer != (issuers + issuers_count); ++issuer)
   {
-    if(!memcmp(issuer.issuer_id, issuerId.data(), 8)){
-      foundIssuer = &issuer;
+    if(!memcmp(issuer->issuer_id, issuerId.data(), 8)){
+      foundIssuer = issuer;
     }
   }
 
@@ -245,13 +245,7 @@ std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector<uint8_t>> 
     cbor_encode_byte_string(&packageArray, {}, 1);
     cbor_encode_byte_string(&packageArray, data.data(), data.size());
     cbor_encoder_close_container(&package, &packageArray);
-    // json signedData;
-    // signedData.push_back("Signature1");
-    // signedData.push_back(json::binary(protectedHeaders));
-    // signedData.push_back(json::binary({}));
-    // signedData.push_back(json::binary(data));
-    // std::vector<uint8_t> cbor_data = json::to_cbor(signedData);
-
+    
     int res = crypto_sign_ed25519_verify_detached(signature, packageBuf.data(), cbor_encoder_get_buffer_size(&package, packageBuf.data()), foundIssuer->issuer_pk);
     if (res) {
       LOG(E, "Failed to verify attestation signature: %d", res);

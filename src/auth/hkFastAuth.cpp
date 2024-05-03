@@ -52,20 +52,20 @@ std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *> HKFastAuth::find_end
 {
   HomeKeyData_Endpoint *foundEndpoint = nullptr;
   HomeKeyData_KeyIssuer *foundIssuer = nullptr;
-  for (auto &&issuer : issuers)
+  for (auto *issuer = issuers; issuer != (issuers + issuers_count); ++issuer)
   {
-    LOG(V, "Issuer: %s, Endpoints: %d", utils::bufToHexString(issuer.issuer_id, sizeof(issuer.issuer_id)).c_str(), issuer.endpoints_count);
-    for (auto &&endpoint : issuer.endpoints)
+    LOG(V, "Issuer: %s, Endpoints: %d", utils::bufToHexString(issuer->issuer_id, sizeof(issuer->issuer_id)).c_str(), issuer->endpoints_count);
+    for (auto *endpoint = issuer->endpoints; endpoint != (issuers->endpoints + issuer->endpoints_count) ;++endpoint)
     {
-      LOG(V, "Endpoint: %s, Persistent Key: %s", utils::bufToHexString(endpoint.ep_id, sizeof(endpoint.ep_id)).c_str(), utils::bufToHexString(endpoint.ep_persistent_key, sizeof(endpoint.ep_persistent_key)).c_str());
+      LOG(V, "Endpoint: %s, Persistent Key: %s", utils::bufToHexString(endpoint->ep_id, sizeof(endpoint->ep_id)).c_str(), utils::bufToHexString(endpoint->ep_persistent_key, sizeof(endpoint->ep_persistent_key)).c_str());
       std::vector<uint8_t> hkdf(58, 0);
-      Auth0_keying_material("VolatileFast", endpoint.ep_pk_x, endpoint.ep_persistent_key, hkdf.data(), hkdf.size());
+      Auth0_keying_material("VolatileFast", endpoint->ep_pk_x, endpoint->ep_persistent_key, hkdf.data(), hkdf.size());
       LOG(V, "HKDF Derived Key: %s", utils::bufToHexString(hkdf.data(), hkdf.size()).c_str());
       if (!memcmp(hkdf.data(), cryptogram.data(), 16))
       {
-        LOG(D, "Endpoint %s matches cryptogram", utils::bufToHexString(endpoint.ep_id, sizeof(endpoint.ep_id)).c_str());
-        foundEndpoint = &endpoint;
-        foundIssuer = &issuer;
+        LOG(D, "Endpoint %s matches cryptogram", utils::bufToHexString(endpoint->ep_id, sizeof(endpoint->ep_id)).c_str());
+        foundEndpoint = endpoint;
+        foundIssuer = issuer;
         break;
       }
     }

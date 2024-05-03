@@ -11,6 +11,7 @@
 #include <hkAttestationAuth.h>
 #include <BerTlv.h>
 #include <PN532.h>
+#include <freertos/FreeRTOS.h>
 
 using namespace CommonCryptoUtils;
 using namespace utils;

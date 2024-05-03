@@ -16,11 +16,7 @@
  */
 HKAuthenticationContext::HKAuthenticationContext(PN532 &nfc, HomeKeyData_ReaderData &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc)
 {
-  esp_log_level_set("HKAuthCtx", ESP_LOG_VERBOSE);
-  // esp_log_level_set("HKFastAuth", ESP_LOG_VERBOSE);
-  // esp_log_level_set("HKStdAuth", ESP_LOG_VERBOSE);
-  // esp_log_level_set("DigitalKeySC", ESP_LOG_VERBOSE);
-  // esp_log_level_set("ISO18013_SC", ESP_LOG_VERBOSE);
+  esp_log_level_set(TAG, ESP_LOG_VERBOSE);
   auto startTime = std::chrono::high_resolution_clock::now();
   auto readerEphKey = generateEphemeralKey();
   readerEphPrivKey = std::move(std::get<0>(readerEphKey));
@@ -80,11 +76,10 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
     HomeKeyData_Endpoint *foundEndpoint = nullptr;
     std::vector<uint8_t> persistentKey;
     KeyFlow flowUsed = kFlowFailed;
-    std::list<HomeKeyData_KeyIssuer> issuers(readerData.issuers, readerData.issuers + readerData.issuers_count);
     if (hkFlow == kFlowFAST) {
       std::vector<uint8_t> encryptedMessage;
       Auth0Res.GetValue(int_to_hex(kAuth0_Cryptogram), &encryptedMessage);
-      auto fastAuth = HKFastAuth(*readerData.reader_pk_x, issuers, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier).attest(encryptedMessage);
+      auto fastAuth = HKFastAuth(*readerData.reader_pk_x, readerData.issuers, readerData.issuers_count, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier).attest(encryptedMessage);
       if (std::get<1>(fastAuth) != nullptr && std::get<2>(fastAuth) != kFlowFailed)
       {
         foundIssuer = std::get<0>(fastAuth);
@@ -95,7 +90,7 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
       }
     }
     if(foundEndpoint == nullptr){
-      auto stdAuth = HKStdAuth(nfc, *readerData.reader_sk, readerEphPrivKey, issuers, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier).attest();
+      auto stdAuth = HKStdAuth(nfc, *readerData.reader_sk, readerEphPrivKey, readerData.issuers, readerData.issuers_count, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier).attest();
       if(std::get<1>(stdAuth) != nullptr){
         foundIssuer = std::get<0>(stdAuth);
         foundEndpoint = std::get<1>(stdAuth);
@@ -109,8 +104,9 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
           LOG(D, "New Persistent Key: %s", utils::bufToHexString(foundEndpoint->ep_persistent_key, 32).c_str());
         }
       }
-      if(std::get<4>(stdAuth) == kFlowFailed || hkFlow == kFlowATTESTATION){
-        auto attestation = HKAttestationAuth(issuers, std::get<2>(stdAuth), nfc).attest();
+      if (std::get<4>(stdAuth) == kFlowFailed || hkFlow == kFlowATTESTATION) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        auto attestation = HKAttestationAuth(readerData.issuers, readerData.issuers_count, std::get<2>(stdAuth), nfc).attest();
         if (std::get<1>(attestation) == kFlowATTESTATION) {
           HomeKeyData_Endpoint endpoint;
           foundIssuer = std::get<0>(std::get<0>(attestation));
@@ -134,14 +130,16 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
       if(flowUsed >= kFlowSTANDARD && persistentKey.size() > 0){
         // json serializedData = readerData;
         // auto msgpack = json::to_msgpack(serializedData);
-        size_t encSize = 0;
-        pb_get_encoded_size(&encSize, &HomeKeyData_ReaderData_msg, &readerData);
-        uint8_t buffer[encSize];
-        pb_ostream_t ostream = pb_ostream_from_buffer(buffer, encSize);
-        esp_err_t set_nvs = nvs_set_blob(savedData, "READERDATA", buffer, encSize);
+        uint8_t* buffer = (uint8_t*)malloc(HomeKeyData_ReaderData_size);
+        pb_ostream_t ostream = pb_ostream_from_buffer(buffer, HomeKeyData_ReaderData_size);
+        bool encodeStatus = pb_encode(&ostream, &HomeKeyData_ReaderData_msg, &readerData);
+        LOG(I, "PB ENCODE STATUS: %d", encodeStatus);
+        LOG(I, "PB BYTES WRITTEN: %d", ostream.bytes_written);
+        esp_err_t set_nvs = nvs_set_blob(savedData, "READERDATA", buffer, ostream.bytes_written);
         esp_err_t commit_nvs = nvs_commit(savedData);
-        LOG(V, "NVS SET STATUS: %s", esp_err_to_name(set_nvs));
-        LOG(V, "NVS COMMIT STATUS: %s", esp_err_to_name(commit_nvs));
+        LOG(D, "NVS SET STATUS: %s", esp_err_to_name(set_nvs));
+        LOG(D, "NVS COMMIT STATUS: %s", esp_err_to_name(commit_nvs));
+        free(buffer);
       }
     }
     if(foundEndpoint != nullptr && flowUsed != kFlowFailed) {

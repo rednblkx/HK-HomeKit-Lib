@@ -21,7 +21,8 @@ class HKAttestationAuth
 {
 private:
   const char *TAG = "HKAttestAuth";
-  std::list<HomeKeyData_KeyIssuer> &issuers;
+  HomeKeyData_KeyIssuer *issuers;
+  size_t issuers_count = 0;
   PN532& nfc;
   std::vector<uint8_t> attestation_exchange_common_secret;
   DigitalKeySecureContext &DKSContext;
@@ -31,6 +32,6 @@ private:
   std::tuple<HomeKeyData_KeyIssuer*, std::vector<uint8_t>, std::vector<uint8_t>> verify(std::vector<uint8_t> &decryptedCbor);
 
 public:
-  HKAttestationAuth(std::list<HomeKeyData_KeyIssuer> &issuers, DigitalKeySecureContext &context, PN532& nfc) : issuers(issuers), nfc(nfc), DKSContext(context){};
+  HKAttestationAuth(HomeKeyData_KeyIssuer *issuers, size_t issuers_count, DigitalKeySecureContext &context, PN532& nfc) : issuers(issuers), issuers_count(issuers_count), nfc(nfc), DKSContext(context){esp_log_level_set(TAG, ESP_LOG_VERBOSE);};
   std::tuple<std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector<uint8_t>>, KeyFlow> attest();
 };

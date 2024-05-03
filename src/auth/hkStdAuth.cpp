@@ -121,15 +121,15 @@ std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, DigitalKeySecureCont
         // commandFlow(kCmdFlowFailed);
         return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
       }
-      for (auto &issuer : issuers)
+      for (auto *issuer = issuers; issuer != (issuers + issuers_count); ++issuer)
       {
-        for (auto &endpoint : issuer.endpoints)
+        for (auto *endpoint = issuer->endpoints; endpoint != (issuers->endpoints + issuer->endpoints_count) ;++endpoint)
         {
-          if (!memcmp(endpoint.ep_id, device_identifier.data(), 6))
+          if (!memcmp(endpoint->ep_id, device_identifier.data(), 6))
           {
-            LOG(D, "STD_AUTH: Found Matching Endpoint, ID: %s", utils::bufToHexString(endpoint.ep_id, sizeof(endpoint.ep_id)).c_str());
-            foundEndpoint = &endpoint;
-            foundIssuer = &issuer;
+            LOG(D, "STD_AUTH: Found Matching Endpoint, ID: %s", utils::bufToHexString(endpoint->ep_id, sizeof(endpoint->ep_id)).c_str());
+            foundEndpoint = endpoint;
+            foundIssuer = issuer;
           }
         }
       }

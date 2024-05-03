@@ -57,7 +57,7 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
         LOG(I, "READER KEY SAVED TO NVS, COMPOSING RESPONSE");
         // size_t out_len = 0;
         TLV8 rkResSub(NULL, 0);
-        rkResSub.add(kReader_Res_Status, 1, 0);
+        rkResSub.add(kReader_Res_Status, 1, {});
         uint8_t rkSubTlv[rkResSub.pack_size()];
         rkResSub.pack(rkSubTlv);
         LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", sizeof(rkSubTlv), utils::bufToHexString(rkSubTlv, sizeof(rkSubTlv)).c_str());
@@ -65,13 +65,6 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
         rkResTlv.add(kReader_Res_Reader_Key_Response, sizeof(rkSubTlv), rkSubTlv);
         uint8_t rkRes[rkResTlv.pack_size()];
         rkResTlv.pack(rkRes);
-        // LOG(D, "TLV LENGTH: %d, DATA: %s", sizeof(rkRes), utils::bufToHexString(rkRes, sizeof(rkRes)));
-        // mbedtls_base64_encode(NULL, 0, &out_len, rkResTlv.GetTlv().data(), rkResTlv.GetTlv().size());
-        // std::vector<uint8_t> resB64(out_len + 1);
-        // int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, rkResTlv.GetTlv().data(), rkResTlv.GetTlv().size());
-        // resB64[out_len] = '\0';
-        // LOG(D, "B64 ENC STATUS: %d", ret);
-        // LOG(I, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
         esp_log_buffer_hex_internal(TAG, rkRes, sizeof(rkRes), ESP_LOG_INFO);
         return std::vector<uint8_t>(rkRes, rkRes + sizeof(rkRes));
       }
@@ -89,12 +82,6 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
         BerTlv dcrResTlv;
         dcrResTlv.Add(int_to_hex(kDevice_Credential_Response), dcrResSubTlv.GetTlv());
         LOG(D, "TLV LENGTH: %d, DATA: %s", dcrResTlv.GetTlv().size(), dcrResTlv.GetTlvAsHexString().c_str());
-        // mbedtls_base64_encode(NULL, 0, &out_len, dcrResTlv.GetTlv().data(), dcrResTlv.GetTlv().size());
-        // std::vector<uint8_t> resB64(out_len + 1);
-        // int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, dcrResTlv.GetTlv().data(), dcrResTlv.GetTlv().size());
-        // resB64[out_len] = '\0';
-        // LOG(D, "B64 ENC STATUS: %d", ret);
-        // LOG(I, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
         esp_log_buffer_hex_internal(TAG, dcrResTlv.GetTlv().data(), dcrResTlv.GetTlv().size(), ESP_LOG_INFO);
         return std::move(dcrResTlv.GetTlv());
       }
@@ -213,8 +200,6 @@ int HK_HomeKit::set_reader_key(std::vector<uint8_t> buf) {
 }
 
 bool HK_HomeKit::save_to_nvs() {
-  // json serializedData = readerData;
-  // auto msgpack = json::to_msgpack(serializedData);
   uint8_t* buffer = (uint8_t*)malloc(HomeKeyData_ReaderData_size);
   pb_ostream_t ostream = pb_ostream_from_buffer(buffer, HomeKeyData_ReaderData_size);
   bool encodeStatus = pb_encode(&ostream, &HomeKeyData_ReaderData_msg, &readerData);
