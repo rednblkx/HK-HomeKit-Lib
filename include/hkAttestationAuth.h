@@ -14,6 +14,7 @@
 #include <cJSON.h>
 #include <cbor.h>
 #include <PN532.h>
+#include <freertos/FreeRTOS.h>
 
 using namespace CommonCryptoUtils;
 using namespace utils;
@@ -32,6 +33,6 @@ private:
   std::tuple<HomeKeyData_KeyIssuer*, std::vector<uint8_t>, std::vector<uint8_t>> verify(std::vector<uint8_t> &decryptedCbor);
 
 public:
-  HKAttestationAuth(HomeKeyData_KeyIssuer *issuers, size_t issuers_count, DigitalKeySecureContext &context, PN532& nfc) : issuers(issuers), issuers_count(issuers_count), nfc(nfc), DKSContext(context){esp_log_level_set(TAG, ESP_LOG_VERBOSE);};
+  HKAttestationAuth(HomeKeyData_KeyIssuer *issuers, size_t issuers_count, DigitalKeySecureContext &context, PN532& nfc) : issuers(issuers), issuers_count(issuers_count), nfc(nfc), DKSContext(context){/* esp_log_level_set(TAG, ESP_LOG_VERBOSE); */};
   std::tuple<std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector<uint8_t>>, KeyFlow> attest();
 };

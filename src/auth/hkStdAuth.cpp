@@ -90,7 +90,7 @@ std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, DigitalKeySecureCont
   apdu.resize(apdu.size() + sigTlv.size());
   std::move(sigTlv.begin(), sigTlv.end(), apdu.begin() + 5);
   uint8_t response[128];
-  uint8_t responseLength = 128;
+  uint16_t responseLength = 128;
   LOG(D, "Auth1 APDU Length: %d, DATA: %s", apdu.size(), utils::bufToHexString(apdu.data(), apdu.size()).c_str());
   nfc.inDataExchange(apdu.data(), apdu.size(), response, &responseLength);
   LOG(D, "Auth1 Response Length: %d, DATA: %s", responseLength, utils::bufToHexString(response, responseLength).c_str());

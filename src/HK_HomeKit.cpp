@@ -1,7 +1,6 @@
 #include <HK_HomeKit.h>
 
 HK_HomeKit::HK_HomeKit(HomeKeyData_ReaderData& readerData, nvs_handle& nvsHandle, const char* nvsKey) : readerData(readerData), nvsHandle(nvsHandle), nvsKey(nvsKey) {
-  esp_log_level_set(TAG, ESP_LOG_DEBUG);
 }
 
 std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
@@ -19,26 +18,16 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
       if ((*RKR).tag == kReader_Reader_Key_Request) {
         LOG(I, "GET READER KEY REQUEST");
         if (memcmp(readerData.reader_sk, std::vector<uint8_t>(32, 0).data(), 32)) {
-          // size_t out_len = 0;
           TLV8 getResSub(NULL, 0);
-          // BerTlv subTlv;
           getResSub.add(kReader_Res_Key_Identifier, sizeof(readerData.reader_group_id), readerData.reader_group_id);
           uint8_t subTlv[getResSub.pack_size()];
-          // subTlv.Add(int_to_hex(kReader_Res_Key_Identifier), std::vector<uint8_t>{readerData.reader_group_id, readerData.reader_group_id + sizeof(readerData.reader_group_id)});
           getResSub.pack(subTlv);
           LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", sizeof(subTlv), utils::bufToHexString(subTlv, sizeof(subTlv)).c_str());
           TLV8 getResTlv(NULL, 0);
-          // BerTlv resTlv;
           getResTlv.add(kReader_Res_Reader_Key_Response, sizeof(subTlv), subTlv);
           uint8_t tlvRes[getResTlv.pack_size()];
           getResTlv.pack(tlvRes);
           LOG(D, "TLV LENGTH: %d, DATA: %s", sizeof(tlvRes), utils::bufToHexString(tlvRes, sizeof(tlvRes)).c_str());
-          // mbedtls_base64_encode(NULL, 0, &out_len, resTlv.GetTlv().data(), resTlv.GetTlv().size());
-          // std::vector<uint8_t> resB64(out_len + 1);
-          // int ret = mbedtls_base64_encode(resB64.data(), resB64.size(), &out_len, resTlv.GetTlv().data(), resTlv.GetTlv().size());
-          // resB64[out_len] = '\0';
-          // LOG(D, "B64 ENC STATUS: %d", ret);
-          // LOG(D, "RESPONSE LENGTH: %d, DATA: %s", out_len, resB64.data());
           esp_log_buffer_hex_internal(TAG, tlvRes, sizeof(tlvRes), ESP_LOG_INFO);
           return std::vector<uint8_t>(tlvRes, tlvRes + sizeof(tlvRes));
         }
@@ -131,12 +120,6 @@ std::tuple<uint8_t*, int> HK_HomeKit::provision_device_cred(std::vector<uint8_t>
       if (foundEndpoint == 0) {
         LOG(D, "Adding new endpoint - ID: %s , PublicKey: %s", utils::bufToHexString(endpointId.data(), 6).c_str(), utils::bufToHexString(devicePubKey.data(), devicePubKey.size()).c_str());
         HomeKeyData_Endpoint endpoint;
-        // endpointEnrollment::enrollment_t hap;
-        // hap.unixTime = std::time(nullptr);
-        // uint8_t encoded[128];
-        // size_t olen = 0;
-        // mbedtls_base64_encode(encoded, 128, &olen, buf.data(), buf.size());
-        // hap.payload.insert(hap.payload.begin(), encoded, encoded + olen);
         std::vector<uint8_t> x_coordinate = get_x(devicePubKey.data(), devicePubKey.size());
         std::vector<uint8_t> keyType;
         dcrTlv.GetValue(int_to_hex(kDevice_Req_Key_Type), &keyType);
@@ -150,7 +133,6 @@ std::tuple<uint8_t*, int> HK_HomeKit::provision_device_cred(std::vector<uint8_t>
         memcpy(endpoint.ep_pk_x, x_coordinate.data(), x_coordinate.size());
         foundIssuer->endpoints[foundIssuer->endpoints_count] = endpoint;
         foundIssuer->endpoints_count++;
-        // foundIssuer->endpoints.emplace_back(endpoint);
         save_to_nvs();
         return std::make_tuple(foundIssuer->issuer_id, SUCCESS);
       }
