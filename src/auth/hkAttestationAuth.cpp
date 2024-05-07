@@ -185,32 +185,53 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   return std::vector<uint8_t>();
 }
 
-std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::verify(std::vector<uint8_t> &decryptedCbor){
-  CBOR issuerSignedCbor = CBOR(decryptedCbor.data(), decryptedCbor.size());
-  std::vector<uint8_t> protectedHeaders(issuerSignedCbor["documents"][0]["issuerSigned"]["issuerAuth"][0].get_bytestring_len());
-  std::vector<uint8_t> issuerId(issuerSignedCbor["documents"][0]["issuerSigned"]["issuerAuth"][1][4].get_bytestring_len());
-  std::vector<uint8_t> data(issuerSignedCbor["documents"][0]["issuerSigned"]["issuerAuth"][2].get_bytestring_len());
-  uint8_t signature[issuerSignedCbor["documents"][0]["issuerSigned"]["issuerAuth"][3].get_bytestring_len()];
-  issuerSignedCbor["documents"][0]["issuerSigned"]["issuerAuth"][0].get_bytestring(protectedHeaders.data());
-  issuerSignedCbor["documents"][0]["issuerSigned"]["issuerAuth"][1][4].get_bytestring(issuerId.data());
-  issuerSignedCbor["documents"][0]["issuerSigned"]["issuerAuth"][2].get_bytestring(data.data());
-  issuerSignedCbor["documents"][0]["issuerSigned"]["issuerAuth"][3].get_bytestring(signature);
-  CBOR cborTag = CBOR(data.data(), data.size());
-  uint8_t deviceInfo[cborTag.get_tag_item().get_bytestring_len()];
-  cborTag.get_tag_item().get_bytestring(deviceInfo);
-  CBOR cborDevice = CBOR(deviceInfo, sizeof(deviceInfo));
-  CBOR cborKeyX = cborDevice["deviceKeyInfo"]["deviceKey"].find_by_key(-2);
-  CBOR cborKeyY = cborDevice["deviceKeyInfo"]["deviceKey"].find_by_key(-3);
-  uint8_t deviceKeyX[cborKeyX.get_bytestring_len()];
-  uint8_t deviceKeyY[cborKeyY.get_bytestring_len()];
-  cborKeyX.get_bytestring(deviceKeyX);
-  cborKeyY.get_bytestring(deviceKeyY);
-  std::vector<uint8_t> devicePubKey;
-  devicePubKey.push_back(0x04);
-  devicePubKey.insert(devicePubKey.end(), deviceKeyX, deviceKeyX + sizeof(deviceKeyX));
-  devicePubKey.insert(devicePubKey.end(), deviceKeyY, deviceKeyY + sizeof(deviceKeyY));
+std::tuple<HomeKeyData_KeyIssuer*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vector<uint8_t>& decryptedCbor) {
+  json root = cbor::decode_cbor<json>(decryptedCbor);
 
-  HomeKeyData_KeyIssuer *foundIssuer = nullptr;
+  HomeKeyData_KeyIssuer* foundIssuer = nullptr;
+  
+  std::vector<uint8_t> protectedHeaders;
+  std::vector<uint8_t> issuerId;
+  json a = root.at_or_null("documents");
+  json b;
+  json c;
+  json d;
+  std::vector<uint8_t> data;
+  std::vector<uint8_t> deviceKeyX;
+  std::vector<uint8_t> deviceKeyY;
+  std::vector<uint8_t> devicePubKey;
+  std::vector<uint8_t> signature;
+  json j_keyX;
+  json j_keyY;
+  if (a.is_array() && a.size() > 0) {
+    b = a[0].at_or_null("issuerSigned").at_or_null("issuerAuth");
+    json ar = a[0].at_or_null("issuerSigned").at_or_null("issuerAuth");
+    if (ar.is_array() && ar.size() >= 4) {
+      protectedHeaders = ar[0].as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
+      signature = ar[3].as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
+      if (ar[1].at_or_null("4").is_byte_string()) {
+        issuerId = ar[1].at_or_null("4").as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
+      } else goto err;
+    } else goto err;
+  } else goto err;
+
+  if (b.is_array() && b.size() >= 3) {
+    data = b[2].as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
+    c = cbor::decode_cbor<json>(b[2].as_byte_string());
+    if (c.tag() != semantic_tag::ext) goto err;
+  } else goto err;
+
+  d = cbor::decode_cbor<json>(c.as_byte_string());
+  j_keyX = d.at_or_null("deviceKeyInfo").at_or_null("deviceKey").at_or_null("-2");
+  j_keyY = d.at_or_null("deviceKeyInfo").at_or_null("deviceKey").at_or_null("-3");
+  if (!j_keyX.is_byte_string()) goto err;
+  if (!j_keyY.is_byte_string()) goto err;
+  deviceKeyX = j_keyX.as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
+  deviceKeyY = j_keyY.as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
+  devicePubKey.push_back(0x04);
+  devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyX.begin()), std::make_move_iterator(deviceKeyX.end()));
+  devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyY.begin()), std::make_move_iterator(deviceKeyY.end()));
+
 
   for (auto *issuer = issuers; issuer != (issuers + issuers_count); ++issuer)
   {
@@ -235,17 +256,18 @@ std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector<uint8_t>> 
     LOG(D, "CBOR SIZE: %d", package_size);
     LOG(D, "SIGNED PACKAGE: %s", utils::bufToHexString(packageBuf.data(), package_size).c_str());
 
-    int res = crypto_sign_ed25519_verify_detached(signature, packageBuf.data(), package_size, foundIssuer->issuer_pk);
+    int res = crypto_sign_ed25519_verify_detached(signature.data(), packageBuf.data(), package_size, foundIssuer->issuer_pk);
     if (res) {
       LOG(E, "Failed to verify attestation signature: %d", res);
-      return std::make_tuple(foundIssuer, std::vector<uint8_t>(), std::vector<uint8_t>());
+      goto err;
     }
-    return std::make_tuple(foundIssuer, devicePubKey, std::vector<uint8_t>{deviceKeyX, deviceKeyX + sizeof(deviceKeyX)});
+    return std::make_tuple(foundIssuer, devicePubKey);
   }
-  return std::make_tuple(foundIssuer, std::vector<uint8_t>(), std::vector<uint8_t>());
+  err:
+    return std::make_tuple(foundIssuer, std::vector<uint8_t>());
 }
 
-std::tuple<std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector<uint8_t>>, KeyFlow> HKAttestationAuth::attest()
+std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attest()
 {
   attestation_exchange_common_secret.resize(32);
   attestation_exchange_common_secret.reserve(32);
@@ -266,7 +288,6 @@ std::tuple<std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector
   uint16_t xchResLen = 16;
   nfc.inDataExchange(xchApdu, sizeof(xchApdu), xchRes, &xchResLen);
   LOG(D, "APDU RES LENGTH: %d, DATA: %s", xchResLen, utils::bufToHexString(xchRes, xchResLen).c_str());
-  HomeKeyData_KeyIssuer* foundIssuer = nullptr;
   if (xchResLen > 2 && xchRes[xchResLen - 2] == 0x90)
   {
     auto env1Data = envelope1Cmd();
@@ -280,11 +301,11 @@ std::tuple<std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, std::vector
         {
           auto verify_result = verify(env2DataDec);
           if (std::get<1>(verify_result).size() > 0) {
-            return std::make_tuple(verify_result, kFlowATTESTATION);
+            return std::make_tuple(std::get<0>(verify_result), std::get<1>(verify_result), kFlowATTESTATION);
           }
         }
       }
     }
   }
-  return std::make_tuple(std::make_tuple(foundIssuer, std::vector<uint8_t>(), std::vector<uint8_t>()), kFlowFailed);
+  return std::make_tuple(nullptr, std::vector<uint8_t>(), kFlowFailed);
 }

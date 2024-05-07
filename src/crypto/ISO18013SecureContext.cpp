@@ -92,16 +92,19 @@ std::vector<uint8_t> ISO18013SecureContext::encryptMessageToEndpoint(const std::
     }
 
     LOG(D, "CIPHERTEXT LEN: %d DATA: %s", sizeof(ciphertext), utils::bufToHexString(ciphertext, sizeof(ciphertext)).c_str());
-    CBOR cipherCbor = CBOR();
-    cipherCbor.encode(ciphertext, sizeof(ciphertext));
-    CBORPair cipherPair = CBORPair();
-    cipherPair.append("data", cipherCbor);
-
+    CborEncoder cipher;
+    uint8_t cipherBuf[sizeof(ciphertext) + 16];
+    cbor_encoder_init(&cipher, cipherBuf, sizeof(ciphertext) + 16, 0);
+    CborEncoder cipherMap;
+    cbor_encoder_create_map(&cipher, &cipherMap, 1);
+    cbor_encode_text_stringz(&cipherMap, "data");
+    cbor_encode_byte_string(&cipherMap, ciphertext, sizeof(ciphertext));
+    cbor_encoder_close_container(&cipher, &cipherMap);
     readerCounter++;
 
-    LOG(D, "CBOR LEN: %d DATA: %s", cipherPair.length(), utils::bufToHexString(cipherPair.get_buffer(), cipherPair.length()).c_str());
+    LOG(D, "CBOR LEN: %d DATA: %s", sizeof(cipherBuf), utils::bufToHexString(cipherBuf, sizeof(cipherBuf)).c_str());
 
-    return std::vector<uint8_t>{cipherPair.get_buffer(), cipherPair.get_buffer() + cipherPair.length()};
+    return std::vector<uint8_t>{cipherBuf, cipherBuf + sizeof(cipherBuf)};
 }
 
 std::vector<uint8_t> ISO18013SecureContext::decryptMessageFromEndpoint(const std::vector<uint8_t> &message)
@@ -110,12 +113,15 @@ std::vector<uint8_t> ISO18013SecureContext::decryptMessageFromEndpoint(const std
     {
         return std::vector<unsigned char>();
     }
-    CBOR inputData = CBOR(message.data(), message.size());
-    if(!inputData.is_pair() || !inputData["data"].is_bytestring()){
+    json j = cbor::decode_cbor<json>(message);
+
+    std::cout << j << "\n";
+    json data = j.at_or_null("data");
+    if (!data.is_byte_string()) return std::vector<uint8_t>();
+    std::vector<uint8_t> cborCiphertext = data.as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
+    if (data.size()) {
         return std::vector<unsigned char>();
     }
-    std::vector<uint8_t> cborCiphertext(inputData["data"].get_bytestring_len());
-    inputData["data"].get_bytestring(cborCiphertext.data());
     std::vector<uint8_t> plaintext(cborCiphertext.size() - 16);
 
     std::vector<uint8_t> iv = getEndpointIV();
@@ -126,7 +132,9 @@ std::vector<uint8_t> ISO18013SecureContext::decryptMessageFromEndpoint(const std
     int setKey = mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, endpointKey.data(), keyLength * 8);
     if (setKey != 0)
     {
-        LOG(E, "Cannot set key - %s", mbedtls_high_level_strerr(setKey));
+        char err[64];
+        mbedtls_strerror(setKey, err, 64);
+        LOG(E, "Cannot set key - %s - %d", err, setKey);
         return std::vector<unsigned char>();
     }
     int dec = mbedtls_gcm_auth_decrypt(&ctx, cborCiphertext.size() - 16,
@@ -139,7 +147,9 @@ std::vector<uint8_t> ISO18013SecureContext::decryptMessageFromEndpoint(const std
 
     if (dec != 0)
     {
-        LOG(E, "Cannot decrypt - %s", mbedtls_high_level_strerr(dec));
+        char err[64];
+        mbedtls_strerror(setKey, err, 64);
+        LOG(E, "Cannot decrypt - %s", err);
         return std::vector<unsigned char>();
     }
 

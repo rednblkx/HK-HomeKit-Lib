@@ -16,18 +16,12 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
 #include <iomanip>
-#include <YACL.h>
 #include <utils.h>
+#include <cbor.h>
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/cbor/cbor.hpp>
 
-// #include <nlohmann/json.hpp>
-
-// using nlohmann::literals::operator ""_json;
-// using namespace nlohmann::literals;
-// using namespace nlohmann::json_literals;
-// using namespace nlohmann::literals::json_literals;
-// using namespace nlohmann;
-
-// Assuming similar definitions for util::iso7816::ISO7816Tag
+using namespace jsoncons;
 
 class ISO18013SecureContext {
 public:

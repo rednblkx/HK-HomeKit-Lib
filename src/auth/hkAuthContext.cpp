@@ -94,9 +94,8 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
       if(std::get<1>(stdAuth) != nullptr){
         foundIssuer = std::get<0>(stdAuth);
         foundEndpoint = std::get<1>(stdAuth);
-        if (std::get<4>(stdAuth) != kFlowFailed)
+        if ((flowUsed = std::get<4>(stdAuth)) != kFlowFailed)
         {
-          flowUsed = std::get<4>(stdAuth);
           LOG(I, "STANDARD Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
           LOG(D, "Endpoint %s Authenticated via STANDARD Flow", utils::bufToHexString(foundEndpoint->ep_id, sizeof(foundEndpoint->ep_id), true).c_str());
           persistentKey = std::get<3>(stdAuth);
@@ -106,11 +105,11 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
       }
       if (std::get<4>(stdAuth) == kFlowFailed || hkFlow == kFlowATTESTATION) {
         auto attestation = HKAttestationAuth(readerData.issuers, readerData.issuers_count, std::get<2>(stdAuth), nfc).attest();
-        if (std::get<1>(attestation) == kFlowATTESTATION) {
+        if ((flowUsed = std::get<2>(attestation)) == kFlowATTESTATION) {
           HomeKeyData_Endpoint endpoint;
-          foundIssuer = std::get<0>(std::get<0>(attestation));
-          std::vector<uint8_t> devicePubKey = std::get<1>(std::get<0>(attestation));
-          std::vector<uint8_t> deviceKeyX = std::get<2>(std::get<0>(attestation));
+          foundIssuer = std::get<0>(attestation);
+          std::vector<uint8_t> devicePubKey = std::get<1>(attestation);
+          std::vector<uint8_t> deviceKeyX = get_x(std::get<1>(attestation));
           std::move(deviceKeyX.begin(), deviceKeyX.end(), endpoint.ep_pk_x);
           std::vector<uint8_t> eId = utils::getHashIdentifier(devicePubKey.data(), devicePubKey.size(), false);
           std::move(eId.begin(), eId.end(), endpoint.ep_id);
@@ -118,18 +117,14 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
           LOG(I, "ATTESTATION Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
           LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", utils::bufToHexString(endpoint.ep_id, sizeof(endpoint.ep_id), true).c_str());
           persistentKey = std::get<3>(stdAuth);
-          flowUsed = std::get<1>(attestation);
           memcpy(endpoint.ep_persistent_key, persistentKey.data(), 32);
           LOG(D, "New Persistent Key: %s", utils::bufToHexString(endpoint.ep_persistent_key, 32).c_str());
-          // foundEndpoint = &*foundIssuer->endpoints.insert(foundIssuer->endpoints.end(),endpoint);
           foundIssuer->endpoints[foundIssuer->endpoints_count] = endpoint;
           foundIssuer->endpoints_count++;
           foundEndpoint = &foundIssuer->endpoints[foundIssuer->endpoints_count];
         }
       }
       if(flowUsed >= kFlowSTANDARD && persistentKey.size() > 0){
-        // json serializedData = readerData;
-        // auto msgpack = json::to_msgpack(serializedData);
         uint8_t* buffer = (uint8_t*)malloc(HomeKeyData_ReaderData_size);
         pb_ostream_t ostream = pb_ostream_from_buffer(buffer, HomeKeyData_ReaderData_size);
         bool encodeStatus = pb_encode(&ostream, &HomeKeyData_ReaderData_msg, &readerData);
