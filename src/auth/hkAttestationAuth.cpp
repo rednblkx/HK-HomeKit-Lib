@@ -44,7 +44,7 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
   LOG(D, "CBOR MATERIAL DATA: %s", utils::bufToHexString(buf, rootSize).c_str());
 
   std::vector<uint8_t> salt(32);
-  int shaRet = mbedtls_sha256(buf, rootSize, salt.data(), false);
+  int shaRet = mbedtls_sha256_ret(buf, rootSize, salt.data(), false);
 
   if (shaRet != 0)
   {
