@@ -20,6 +20,6 @@ namespace utils
   std::string bufToHexString(const uint16_t *buf, size_t len, bool ignoreLevel = false);
   std::vector<uint8_t> encodeB64(const uint8_t *src, size_t len);
   std::vector<uint8_t> decodeB64(const char *src);
-  std::vector<uint8_t> getHashIdentifier(uint8_t *key, size_t len, bool keyIdentifier);
+  std::vector<uint8_t> getHashIdentifier(const uint8_t *key, size_t len, bool keyIdentifier);
   std::vector<unsigned char> simple_tlv(unsigned char tag, const unsigned char *value, size_t valLength, unsigned char *out = NULL, size_t *olen = NULL);
 };

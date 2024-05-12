@@ -83,7 +83,7 @@ namespace utils
     return dec_vec;
   }
 
-  std::vector<uint8_t> getHashIdentifier(uint8_t* key, size_t len, bool sha256) {
+  std::vector<uint8_t> getHashIdentifier(const uint8_t* key, size_t len, bool sha256) {
     const char* TAG = "getHashIdentifier";
     ESP_LOGV(TAG, "Key: %s, Length: %d, sha256?: %d", bufToHexString(key, len).c_str(), len, sha256);
     std::vector<unsigned char> hashable;
