@@ -30,7 +30,7 @@
 
 //////////////////////////////////////
 
-tlv8_t::tlv8_t(uint8_t tag, size_t len, const uint8_t* val) : tag{tag}, len{len} {       
+tlv_t::tlv_t(uint8_t tag, size_t len, const uint8_t* val) : tag{tag}, len{len} {       
   if(len>0){
     this->val=std::unique_ptr<uint8_t>((uint8_t *)malloc(len));
     if(val!=NULL)
@@ -40,7 +40,7 @@ tlv8_t::tlv8_t(uint8_t tag, size_t len, const uint8_t* val) : tag{tag}, len{len}
 
 //////////////////////////////////////
 
-void tlv8_t::update(size_t addLen, const uint8_t *addVal){
+void tlv_t::update(size_t addLen, const uint8_t *addVal){
   if(addLen>0){
     uint8_t *p=val.release();
     p=(uint8_t *)realloc(p,len+addLen);
@@ -53,7 +53,7 @@ void tlv8_t::update(size_t addLen, const uint8_t *addVal){
 
 /////////////////////////////////////
 
-void tlv8_t::osprint(std::ostream& os){
+void tlv_t::osprint(std::ostream& os){
 
   uint8_t *p=val.get();       // starting pointer
   uint8_t *pend=p+len;        // ending pointer (may equal starting if len=0)
@@ -69,7 +69,7 @@ void tlv8_t::osprint(std::ostream& os){
 
 /////////////////////////////////////
 
-TLV8_it TLV8::add(uint8_t tag, size_t len, const uint8_t* val){
+TLV_it TLV::add(uint8_t tag, size_t len, const uint8_t* val){
 
   if(!empty() && front().tag==tag)
     front().update(len,val);
@@ -81,7 +81,7 @@ TLV8_it TLV8::add(uint8_t tag, size_t len, const uint8_t* val){
 
 /////////////////////////////////////
 
-TLV8_it TLV8::find(uint8_t tag, TLV8_it it1, TLV8_it it2){
+TLV_it TLV::find(uint8_t tag, TLV_it it1, TLV_it it2){
 
   auto it=it1;
   while(it!=it2 && (*it).tag!=tag)
@@ -91,7 +91,7 @@ TLV8_it TLV8::find(uint8_t tag, TLV8_it it1, TLV8_it it2){
 
 /////////////////////////////////////
 
-size_t TLV8::pack_size(TLV8_it it1, TLV8_it it2){
+size_t TLV::pack_size(TLV_it it1, TLV_it it2){
 
   size_t nBytes=0;
 
@@ -107,7 +107,7 @@ size_t TLV8::pack_size(TLV8_it it1, TLV8_it it2){
 
 /////////////////////////////////////
 
-size_t TLV8::pack(uint8_t *buf, size_t bufSize){
+size_t TLV::pack(uint8_t *buf, size_t bufSize){
 
   size_t nBytes=0;
 
@@ -161,7 +161,7 @@ size_t TLV8::pack(uint8_t *buf, size_t bufSize){
 
 /////////////////////////////////////
 
-void TLV8::unpack(uint8_t *buf, size_t bufSize){
+void TLV::unpack(uint8_t *buf, size_t bufSize){
 
   if(empty())
     unpackPhase=0;
@@ -202,7 +202,7 @@ void TLV8::unpack(uint8_t *buf, size_t bufSize){
 
 /////////////////////////////////////
 
-const char *TLV8::getName(uint8_t tag){
+const char *TLV::getName(uint8_t tag){
 
   if(names==NULL)
     return(NULL);
@@ -217,7 +217,7 @@ const char *TLV8::getName(uint8_t tag){
 
 /////////////////////////////////////
 
-void TLV8::print(TLV8_it it1, TLV8_it it2){
+void TLV::print(TLV_it it1, TLV_it it2){
 
   while(it1!=it2){
     const char *name=getName((*it1).tag);
@@ -235,7 +235,7 @@ void TLV8::print(TLV8_it it1, TLV8_it it2){
   
 //////////////////////////////////////
 
-void TLV8::osprint(std::ostream& os, TLV8_it it1, TLV8_it it2){
+void TLV::osprint(std::ostream& os, TLV_it it1, TLV_it it2){
 
   for(auto it=it1;it!=it2;it++)
     (*it).osprint(os);

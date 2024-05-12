@@ -4,10 +4,10 @@ HK_HomeKit::HK_HomeKit(HomeKeyData_ReaderData& readerData, nvs_handle& nvsHandle
 }
 
 std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
-  TLV8_it operation;
-  TLV8_it RKR;
-  TLV8_it DCR;
-  TLV8 rxTlv(NULL, 0);
+  TLV_it operation;
+  TLV_it RKR;
+  TLV_it DCR;
+  TLV rxTlv(NULL, 0);
   rxTlv.unpack(tlvData.data(), tlvData.size());
   operation = rxTlv.find(kReader_Operation);
   RKR = rxTlv.find(kReader_Reader_Key_Request);
@@ -18,12 +18,12 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
       if ((*RKR).tag == kReader_Reader_Key_Request) {
         LOG(I, "GET READER KEY REQUEST");
         if (memcmp(readerData.reader_sk, std::vector<uint8_t>(32, 0).data(), 32)) {
-          TLV8 getResSub(NULL, 0);
+          TLV getResSub(NULL, 0);
           getResSub.add(kReader_Res_Key_Identifier, sizeof(readerData.reader_group_id), readerData.reader_group_id);
           uint8_t subTlv[getResSub.pack_size()];
           getResSub.pack(subTlv);
           LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", sizeof(subTlv), utils::bufToHexString(subTlv, sizeof(subTlv)).c_str());
-          TLV8 getResTlv(NULL, 0);
+          TLV getResTlv(NULL, 0);
           getResTlv.add(kReader_Res_Reader_Key_Response, sizeof(subTlv), subTlv);
           uint8_t tlvRes[getResTlv.pack_size()];
           getResTlv.pack(tlvRes);
@@ -45,12 +45,12 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
       if (ret == 0) {
         LOG(I, "READER KEY SAVED TO NVS, COMPOSING RESPONSE");
         // size_t out_len = 0;
-        TLV8 rkResSub(NULL, 0);
+        TLV rkResSub(NULL, 0);
         rkResSub.add(kReader_Res_Status, 1, {});
         uint8_t rkSubTlv[rkResSub.pack_size()];
         rkResSub.pack(rkSubTlv);
         LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", sizeof(rkSubTlv), utils::bufToHexString(rkSubTlv, sizeof(rkSubTlv)).c_str());
-        TLV8 rkResTlv(NULL, 0);
+        TLV rkResTlv(NULL, 0);
         rkResTlv.add(kReader_Res_Reader_Key_Response, sizeof(rkSubTlv), rkSubTlv);
         uint8_t rkRes[rkResTlv.pack_size()];
         rkResTlv.pack(rkRes);
