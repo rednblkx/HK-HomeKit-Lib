@@ -115,7 +115,7 @@ std::vector<uint8_t> ISO18013SecureContext::decryptMessageFromEndpoint(const std
     }
     json j = cbor::decode_cbor<json>(message);
 
-    std::cout << j << "\n";
+    LOG(V, "ENC MSG: %s", j.to_string().c_str());
     json data = j.at_or_null("data");
     if (!data.is_byte_string()) return std::vector<uint8_t>();
     std::vector<uint8_t> cborCiphertext = data.as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
