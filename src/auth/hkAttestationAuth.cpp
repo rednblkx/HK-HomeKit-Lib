@@ -17,29 +17,23 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
   cbor_encoder_init(&devEng, devEngCbor, sizeof(devEngCbor), 0);
   CborError i4 = cbor_encoder_create_array(&devEng, &devEngArray, 2);
   CborError i1 = cbor_encode_tag(&devEngArray, CborEncodedCborTag);
-  LOG(I, "TEST2 %s", cbor_error_string(i1));
   CborError i2 = cbor_encode_byte_string(&devEngArray, res_eng->data.data(), res_eng->data.size() - 1);
   CborEncoder innerArray;
   cbor_encoder_create_array(&devEngArray, &innerArray, 2);
-  LOG(I, "TEST13");
   cbor_encode_byte_string(&innerArray, env1Ndef.data(), env1Ndef.size());
-  LOG(I, "TEST14");
   cbor_encode_byte_string(&innerArray, readerCmd.data(), readerCmd.size());
-  LOG(I, "TEST15");
   cbor_encoder_close_container(&devEngArray, &innerArray);
-  LOG(I, "TEST12");
   cbor_encoder_close_container(&devEng, &devEngArray);
   size_t devSize = cbor_encoder_get_buffer_size(&devEng, devEngCbor);
-  ESP_LOG_BUFFER_HEX(TAG, devEngCbor, devSize);
-  LOG(I, "TEST5 %d", devSize);
+  LOG(D, "Device Engagement CBOR");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, devEngCbor, devSize, ESP_LOG_VERBOSE);
   CborEncoder root;
   cbor_encoder_init(&root, buf, sizeof(buf), 0);
   cbor_encode_tag(&root, CborEncodedCborTag);
-  LOG(I, "TEST12");
   cbor_encode_byte_string(&root, devEngCbor, devSize);
-  LOG(I, "TEST13");
   size_t rootSize = cbor_encoder_get_buffer_size(&root, buf);
-  ESP_LOG_BUFFER_HEX(TAG, buf, rootSize);
+  LOG(D, "NDEF CBOR");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, buf, rootSize, ESP_LOG_VERBOSE);
 
   LOG(D, "CBOR MATERIAL DATA: %s", utils::bufToHexString(buf, rootSize).c_str());
 
@@ -119,7 +113,8 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   cbor_encoder_close_container(&docMap, &namespaces);
   cbor_encoder_close_container(&docType, &docMap);
 
-  ESP_LOG_BUFFER_HEX(TAG, doctype, cbor_encoder_get_buffer_size(&docType, doctype));
+  LOG(D, "ENV2 CBOR");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, doctype, cbor_encoder_get_buffer_size(&docType, doctype), ESP_LOG_VERBOSE);
 
   uint8_t docBuf[150];
   CborEncoder doc;
@@ -140,9 +135,8 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   cbor_encode_text_stringz(&docReq, "1.0");
   cbor_encoder_close_container(&doc, &docReq);
   size_t docSize = cbor_encoder_get_buffer_size(&doc, docBuf);
+  LOG(D, "ENV2 CBOR");
   ESP_LOG_BUFFER_HEX(TAG, docBuf, docSize);
-
-  LOG(V, "CBOR2ENC: %s", utils::bufToHexString(docBuf, docSize).c_str());
   auto encrypted = secureCtx.encryptMessageToEndpoint(std::vector<uint8_t>(docBuf, docBuf + docSize));
   if(encrypted.size() > 0){
     LOG(D, "ENC DATA: %s", utils::bufToHexString(encrypted.data(), encrypted.size()).c_str());
