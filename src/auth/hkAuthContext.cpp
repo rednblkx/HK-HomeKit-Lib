@@ -85,7 +85,6 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
         foundIssuer = std::get<0>(fastAuth);
         foundEndpoint = std::get<1>(fastAuth);
         flowUsed = std::get<2>(fastAuth);
-        LOG(I, "FAST flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
         LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(foundEndpoint->ep_id, sizeof(foundEndpoint->ep_id), true).c_str());
       }
     }
@@ -96,7 +95,6 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
         foundEndpoint = std::get<1>(stdAuth);
         if ((flowUsed = std::get<4>(stdAuth)) != kFlowFailed)
         {
-          LOG(I, "STANDARD Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
           LOG(D, "Endpoint %s Authenticated via STANDARD Flow", utils::bufToHexString(foundEndpoint->ep_id, sizeof(foundEndpoint->ep_id), true).c_str());
           persistentKey = std::get<3>(stdAuth);
           memcpy(foundEndpoint->ep_persistent_key, persistentKey.data(), 32);
