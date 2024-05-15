@@ -114,7 +114,6 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
           std::vector<uint8_t> eId = utils::getHashIdentifier(devicePubKey.data(), devicePubKey.size(), false);
           std::move(eId.begin(), eId.end(), endpoint.ep_id);
           std::move(devicePubKey.begin(), devicePubKey.end(), endpoint.ep_pk);
-          LOG(I, "ATTESTATION Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
           LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", utils::bufToHexString(endpoint.ep_id, sizeof(endpoint.ep_id), true).c_str());
           persistentKey = std::get<3>(stdAuth);
           memcpy(endpoint.ep_persistent_key, persistentKey.data(), 32);
@@ -146,6 +145,7 @@ std::tuple<uint8_t *, uint8_t *, KeyFlow> HKAuthenticationContext::authenticate(
       }
       if (flowUsed == kFlowATTESTATION || cmdFlowStatus.data()[0] == 0x90)
       {
+        LOG(I, "Transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
         return std::make_tuple(foundIssuer->issuer_id, foundEndpoint->ep_id, flowUsed);
       } else {
         LOG(E, "Control Flow Response not 0x90!, %s", utils::bufToHexString(cmdFlowStatus.data(), cmdFlowStatus.size()).c_str());
