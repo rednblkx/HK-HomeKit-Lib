@@ -13,11 +13,7 @@
   ],
   "license": "MIT",
   "homepage": "",
-  "build": {
-    "extraScript": "extra_script.py"
-  },
   "dependencies": {
-    "Nanopb": "^0.4.8",
     "jsoncons": "https://github.com/rednblkx/jsoncons.git"
   },
   "frameworks": ["espidf", "arduino"],

@@ -64,13 +64,13 @@ void HKStdAuth::Auth1_keying_material(uint8_t *keyingMaterial, const char *conte
  * Performs authentication using the STANDARD flow.
  * 
  * @return a tuple containing the following elements:
- * 1. A pointer to the issuer object (`HomeKeyData_KeyIssuer*`)
- * 2. A pointer to the endpoint object (`HomeKeyData_Endpoint*`)
+ * 1. A pointer to the issuer object (`hkIssuer_t*`)
+ * 2. A pointer to the endpoint object (`hkEndpoint_t*`)
  * 3. An object of type `DigitalKeySecureContext`
  * 4. A vector of `uint8_t` elements
  * 5. An enum value of type `KeyFlow`
  */
-std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, DigitalKeySecureContext, std::vector<uint8_t>, KeyFlow> HKStdAuth::attest()
+std::tuple<hkIssuer_t *, hkEndpoint_t *, DigitalKeySecureContext, std::vector<uint8_t>, KeyFlow> HKStdAuth::attest()
 {
   // int readerContext = 1096652137;
   uint8_t readerCtx[4]{0x41, 0x5d, 0x95, 0x69};
@@ -84,7 +84,7 @@ std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, DigitalKeySecureCont
   utils::simple_tlv(0x87, readerEphX.data(), readerEphX.size(), stdTlv.data() + len, &len);
   utils::simple_tlv(0x4C, transactionIdentifier.data(), 16, stdTlv.data() + len, &len);
   utils::simple_tlv(0x93, readerCtx, 4, stdTlv.data() + len, &len);
-  std::vector<uint8_t> sigPoint = signSharedInfo(stdTlv.data(), len, &reader_private_key, 32);
+  std::vector<uint8_t> sigPoint = signSharedInfo(stdTlv.data(), len, reader_private_key.data(), reader_private_key.size());
   std::vector<uint8_t> sigTlv = utils::simple_tlv(0x9E, sigPoint.data(), sigPoint.size());
   std::vector<uint8_t> apdu{0x80, 0x81, 0x0, 0x0, (uint8_t)sigTlv.size()};
   apdu.resize(apdu.size() + sigTlv.size());
@@ -98,38 +98,36 @@ std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, DigitalKeySecureCont
   uint8_t volatileKey[48];
   Auth1_keys_generator(persistentKey.data(), volatileKey);
   DigitalKeySecureContext context = DigitalKeySecureContext(volatileKey);
-  HomeKeyData_Endpoint *foundEndpoint = nullptr;
-  HomeKeyData_KeyIssuer *foundIssuer = nullptr;
+  hkEndpoint_t *foundEndpoint = nullptr;
+  hkIssuer_t *foundIssuer = nullptr;
   if (responseLength > 2 && response[responseLength - 2] == 0x90)
   {
     auto response_result = context.decrypt_response(response, responseLength - 2);
     LOG(D, "Decrypted Length: %d, Data: %s", response_result.size(), utils::bufToHexString(response_result.data(), response_result.size()).c_str());
     if (response_result.size() > 0)
     {
-      BerTlv decryptedTlv;
-      decryptedTlv.SetTlv(response_result);
-      LOG(D, "TLV DATA: %s", decryptedTlv.GetTlvAsHexString().c_str());
-      std::vector<uint8_t> signature;
-      std::vector<uint8_t> device_identifier;
-      decryptedTlv.GetValue("4E", &device_identifier);
-      decryptedTlv.GetValue("9E", &signature);
+      TLV decryptedTlv(NULL, 0);
+      decryptedTlv.unpack(response_result.data(), response_result.size());
+      TLV_it devId = decryptedTlv.find(0x4E);
+      TLV_it sig = decryptedTlv.find(0x9E);
+      std::vector<uint8_t> device_identifier{(*devId).val.get(), (*devId).val.get() + (*devId).len};
+      std::vector<uint8_t> signature{(*sig).val.get(), (*sig).val.get() + (*sig).len};
       LOG(D, "Device Identifier: %s", utils::bufToHexString(device_identifier.data(), device_identifier.size()).c_str());
       LOG(D, "Signature: %s", utils::bufToHexString(signature.data(), signature.size()).c_str());
       if (device_identifier.size() == 0)
       {
         LOG(E, "TLV DATA INVALID!");
-        // commandFlow(kCmdFlowFailed);
         return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
       }
-      for (auto *issuer = issuers; issuer != (issuers + issuers_count); ++issuer)
+      for (auto &&issuer : issuers)
       {
-        for (auto *endpoint = issuer->endpoints; endpoint != (issuers->endpoints + issuer->endpoints_count) ;++endpoint)
+        for (auto &&endpoint : issuer.endpoints)
         {
-          if (!memcmp(endpoint->ep_id, device_identifier.data(), 6))
+          if (std::equal(endpoint.endpoint_id.begin(), endpoint.endpoint_id.end(), device_identifier.begin()))
           {
-            LOG(D, "STD_AUTH: Found Matching Endpoint, ID: %s", utils::bufToHexString(endpoint->ep_id, sizeof(endpoint->ep_id)).c_str());
-            foundEndpoint = endpoint;
-            foundIssuer = issuer;
+            LOG(D, "STD_AUTH: Found Matching Endpoint, ID: %s", utils::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size()).c_str());
+            foundEndpoint = &endpoint;
+            foundIssuer = &issuer;
           }
         }
       }
@@ -157,7 +155,7 @@ std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, DigitalKeySecureCont
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
         mbedtls_ecp_group_load(&keypair.grp, MBEDTLS_ECP_DP_SECP256R1);
-        int pubImport = mbedtls_ecp_point_read_binary(&keypair.grp, &keypair.Q, foundEndpoint->ep_pk, sizeof(foundEndpoint->ep_pk));
+        int pubImport = mbedtls_ecp_point_read_binary(&keypair.grp, &keypair.Q, foundEndpoint->endpoint_pk.data(), foundEndpoint->endpoint_pk.size());
         LOG(V, "public key import result: %d", pubImport);
 
         mbedtls_mpi_read_binary(&r, signature.data(), signature.size() / 2);
@@ -181,17 +179,14 @@ std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, DigitalKeySecureCont
           return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowATTESTATION);
         }
       }
-      // commandFlow(kCmdFlowFailed);
       return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
     }
     else
     {
       LOG(W, "STANDARD Flow failed!");
-      // commandFlow(kCmdFlowFailed);
       return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
     }
   }
   LOG(E, "Response Status not 0x90, something went wrong!");
-  // commandFlow(kCmdFlowFailed);
   return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
 }
