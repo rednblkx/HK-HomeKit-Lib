@@ -103,6 +103,26 @@ namespace utils
     ESP_LOGD(TAG, "HashIdentifier: %s", bufToHexString(hash, 8).c_str());
     return std::vector<uint8_t>{hash, hash + 8};
   }
+  std::vector<uint8_t> getHashIdentifier(const std::vector<uint8_t> &key, bool sha256) {
+    const char* TAG = "getHashIdentifier";
+    ESP_LOGV(TAG, "Key: %s, Length: %d, sha256?: %d", bufToHexString(key.data(), key.size()).c_str(), key.size(), sha256);
+    std::vector<unsigned char> hashable;
+    if (sha256) {
+      std::string string = "key-identifier";
+      hashable.insert(hashable.begin(), string.begin(), string.end());
+    }
+    hashable.insert(hashable.end(), key.begin(), key.end());
+    ESP_LOGV(TAG, "Hashable: %s", bufToHexString(&hashable.front(), hashable.size()).c_str());
+    uint8_t hash[32];
+    if (sha256) {
+      mbedtls_sha256(&hashable.front(), hashable.size(), hash, 0);
+    }
+    else {
+      mbedtls_sha1(&hashable.front(), hashable.size(), hash);
+    }
+    ESP_LOGD(TAG, "HashIdentifier: %s", bufToHexString(hash, 8).c_str());
+    return std::vector<uint8_t>{hash, hash + 8};
+  }
 
   std::vector<unsigned char> simple_tlv(unsigned char tag, const unsigned char* value, size_t valLength, unsigned char* out, size_t* olen) {
     const char* TAG = "simple_tlv";

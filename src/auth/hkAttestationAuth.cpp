@@ -179,10 +179,10 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   return std::vector<uint8_t>();
 }
 
-std::tuple<HomeKeyData_KeyIssuer*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vector<uint8_t>& decryptedCbor) {
+std::tuple<hkIssuer_t*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vector<uint8_t>& decryptedCbor) {
   json root = cbor::decode_cbor<json>(decryptedCbor);
 
-  HomeKeyData_KeyIssuer* foundIssuer = nullptr;
+  hkIssuer_t* foundIssuer = nullptr;
   
   std::vector<uint8_t> protectedHeaders;
   std::vector<uint8_t> issuerId;
@@ -227,11 +227,11 @@ std::tuple<HomeKeyData_KeyIssuer*, std::vector<uint8_t>> HKAttestationAuth::veri
   devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyY.begin()), std::make_move_iterator(deviceKeyY.end()));
 
 
-  for (auto *issuer = issuers; issuer != (issuers + issuers_count); ++issuer)
+  for (auto &&issuer : issuers)
   {
-    if (!memcmp(issuer->issuer_id, issuerId.data(), 8)) {
-      LOG(D, "Found Issuer: %s", utils::bufToHexString(issuer->issuer_id, 8).c_str());
-      foundIssuer = issuer;
+    if (std::equal(issuer.issuer_id.begin(), issuer.issuer_id.end(), issuerId.begin())) {
+      LOG(D, "Found Issuer: %s", utils::bufToHexString(issuer.issuer_id.data(), issuer.issuer_id.size()).c_str());
+      foundIssuer = &issuer;
     }
   }
 
@@ -250,7 +250,7 @@ std::tuple<HomeKeyData_KeyIssuer*, std::vector<uint8_t>> HKAttestationAuth::veri
     LOG(D, "CBOR SIZE: %d", package_size);
     LOG(D, "SIGNED PACKAGE: %s", utils::bufToHexString(packageBuf.data(), package_size).c_str());
 
-    int res = crypto_sign_ed25519_verify_detached(signature.data(), packageBuf.data(), package_size, foundIssuer->issuer_pk);
+    int res = crypto_sign_ed25519_verify_detached(signature.data(), packageBuf.data(), package_size, foundIssuer->issuer_pk.data());
     if (res) {
       LOG(E, "Failed to verify attestation signature: %d", res);
       goto err;
@@ -261,7 +261,7 @@ std::tuple<HomeKeyData_KeyIssuer*, std::vector<uint8_t>> HKAttestationAuth::veri
     return std::make_tuple(foundIssuer, std::vector<uint8_t>());
 }
 
-std::tuple<HomeKeyData_KeyIssuer *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attest()
+std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attest()
 {
   attestation_exchange_common_secret.resize(32);
   attestation_exchange_common_secret.reserve(32);

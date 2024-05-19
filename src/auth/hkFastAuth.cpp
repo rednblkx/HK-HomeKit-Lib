@@ -16,7 +16,7 @@
  * @param outLen The parameter `outLen` represents the length of the output buffer `out`. It specifies
  * the maximum number of bytes that can be written to the `out` buffer.
  */
-void HKFastAuth::Auth0_keying_material(const char *context, const uint8_t *ePub_X, const uint8_t *keyingMaterial, uint8_t *out, size_t outLen)
+void HKFastAuth::Auth0_keying_material(const char *context, const std::vector<uint8_t> &ePub_X, const std::vector<uint8_t> &keyingMaterial, uint8_t *out, size_t outLen)
 {
   uint8_t interface = 0x5E;
   uint8_t flags[2] = {0x01, 0x01};
@@ -24,10 +24,10 @@ void HKFastAuth::Auth0_keying_material(const char *context, const uint8_t *ePub_
   uint8_t supported_vers[6] = {0x5c, 0x04, 0x02, 0x0, 0x01, 0x0};
   uint8_t dataMaterial[32 + strlen(context) + readerIdentifier.size() + 32 + 1 + sizeof(supported_vers) + sizeof(prot_ver) + readerEphX.size() + 16 + 2 + endpointEphX.size()];
   size_t olen = 0;
-  utils::pack(&reader_key_X, 32, dataMaterial, &olen);
+  utils::pack(reader_key_X.data(), 32, dataMaterial, &olen);
   utils::pack((uint8_t *)context, strlen(context), dataMaterial, &olen);
   utils::pack(readerIdentifier.data(), readerIdentifier.size(), dataMaterial, &olen);
-  utils::pack(ePub_X, 32, dataMaterial, &olen);
+  utils::pack(ePub_X.data(), 32, dataMaterial, &olen);
   utils::pack(&interface, 1, dataMaterial, &olen);
   utils::pack(supported_vers, sizeof(supported_vers), dataMaterial, &olen);
   utils::pack(prot_ver, sizeof(prot_ver), dataMaterial, &olen);
@@ -36,7 +36,7 @@ void HKFastAuth::Auth0_keying_material(const char *context, const uint8_t *ePub_
   utils::pack(flags, 2, dataMaterial, &olen);
   utils::pack(endpointEphX.data(), endpointEphX.size(), dataMaterial, &olen);
   LOG(D, "Auth0 HKDF Material: %s", utils::bufToHexString(dataMaterial, sizeof(dataMaterial)).c_str());
-  int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial, 32, dataMaterial, sizeof(dataMaterial), out, outLen);
+  int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial.data(), keyingMaterial.size(), dataMaterial, sizeof(dataMaterial), out, outLen);
   LOG(V, "HKDF Status: %d", ret);
 }
 
@@ -46,26 +46,27 @@ void HKFastAuth::Auth0_keying_material(const char *context, const uint8_t *ePub_
  *
  * @param cryptogram The parameter "cryptogram" is a vector of uint8_t, which represents the cryptogram received in the Auth0 response.
  *
- * @return a pointer to an object of type `HomeKeyData_Endpoint`.
+ * @return a pointer to an object of type `hkEndpoint_t`.
  */
-std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *> HKFastAuth::find_endpoint_by_cryptogram(std::vector<uint8_t> &cryptogram)
+std::tuple<hkIssuer_t *, hkEndpoint_t *> HKFastAuth::find_endpoint_by_cryptogram(std::vector<uint8_t> &cryptogram)
 {
-  HomeKeyData_Endpoint *foundEndpoint = nullptr;
-  HomeKeyData_KeyIssuer *foundIssuer = nullptr;
-  for (auto *issuer = issuers; issuer != (issuers + issuers_count); ++issuer)
+  hkEndpoint_t *foundEndpoint = nullptr;
+  hkIssuer_t *foundIssuer = nullptr;
+  for (auto &&issuer : issuers)
   {
-    LOG(V, "Issuer: %s, Endpoints: %d", utils::bufToHexString(issuer->issuer_id, sizeof(issuer->issuer_id)).c_str(), issuer->endpoints_count);
-    for (auto *endpoint = issuer->endpoints; endpoint != (issuers->endpoints + issuer->endpoints_count) ;++endpoint)
+    LOG(V, "Issuer: %s, Endpoints: %d", utils::bufToHexString(issuer.issuer_id.data(), issuer.issuer_id.size()).c_str(), issuer.endpoints.size());
+    for (auto &&endpoint : issuer.endpoints)
     {
-      LOG(V, "Endpoint: %s, Persistent Key: %s", utils::bufToHexString(endpoint->ep_id, sizeof(endpoint->ep_id)).c_str(), utils::bufToHexString(endpoint->ep_persistent_key, sizeof(endpoint->ep_persistent_key)).c_str());
-      std::vector<uint8_t> hkdf(58, 0);
-      Auth0_keying_material("VolatileFast", endpoint->ep_pk_x, endpoint->ep_persistent_key, hkdf.data(), hkdf.size());
+      if(endpoint.endpoint_prst_k.size() == 0) continue;
+      LOG(V, "Endpoint: %s, Persistent Key: %s", utils::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size()).c_str(), utils::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
+      std::vector<uint8_t> hkdf(58);
+      Auth0_keying_material("VolatileFast", endpoint.endpoint_pk_x, endpoint.endpoint_prst_k, hkdf.data(), hkdf.size());
       LOG(V, "HKDF Derived Key: %s", utils::bufToHexString(hkdf.data(), hkdf.size()).c_str());
       if (!memcmp(hkdf.data(), cryptogram.data(), 16))
       {
-        LOG(D, "Endpoint %s matches cryptogram", utils::bufToHexString(endpoint->ep_id, sizeof(endpoint->ep_id)).c_str());
-        foundEndpoint = endpoint;
-        foundIssuer = issuer;
+        LOG(D, "Endpoint %s matches cryptogram", utils::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size()).c_str());
+        foundIssuer = &issuer;
+        foundEndpoint = &endpoint;
         break;
       }
     }
@@ -91,12 +92,12 @@ std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *> HKFastAuth::find_end
  * so, it logs the authentication and returns the tuple with the FAST flow type. If the authentication
  * fails, it logs the failure and returns the tuple with the STANDARD flow type.
  */
-std::tuple<HomeKeyData_KeyIssuer *, HomeKeyData_Endpoint *, KeyFlow> HKFastAuth::attest(std::vector<uint8_t> &encryptedMessage)
+std::tuple<hkIssuer_t *, hkEndpoint_t *, KeyFlow> HKFastAuth::attest(std::vector<uint8_t> &encryptedMessage)
 {
   auto foundData = find_endpoint_by_cryptogram(encryptedMessage);
   if (std::get<1>(foundData) != nullptr)
   {
-    LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(std::get<1>(foundData)->ep_id, sizeof(std::get<1>(foundData)->ep_id)).c_str());
+    LOG(D, "Endpoint %s Authenticated via FAST Flow", utils::bufToHexString(std::get<1>(foundData)->endpoint_id.data(), std::get<1>(foundData)->endpoint_id.size()).c_str());
     return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), kFlowFAST);
   }
   LOG(W, "FAST Flow failed!");
