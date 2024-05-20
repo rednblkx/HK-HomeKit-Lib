@@ -113,7 +113,7 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   cbor_encoder_close_container(&docMap, &namespaces);
   cbor_encoder_close_container(&docType, &docMap);
 
-  LOG(D, "ENV2 CBOR");
+  LOG(V, "ENV2 CBOR");
   ESP_LOG_BUFFER_HEX_LEVEL(TAG, doctype, cbor_encoder_get_buffer_size(&docType, doctype), ESP_LOG_VERBOSE);
 
   uint8_t docBuf[150];
@@ -135,8 +135,8 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   cbor_encode_text_stringz(&docReq, "1.0");
   cbor_encoder_close_container(&doc, &docReq);
   size_t docSize = cbor_encoder_get_buffer_size(&doc, docBuf);
-  LOG(D, "ENV2 CBOR");
-  ESP_LOG_BUFFER_HEX(TAG, docBuf, docSize);
+  LOG(V, "ENV2 CBOR");
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, docBuf, docSize, ESP_LOG_VERBOSE);
   auto encrypted = secureCtx.encryptMessageToEndpoint(std::vector<uint8_t>(docBuf, docBuf + docSize));
   if(encrypted.size() > 0){
     LOG(D, "ENC DATA: %s", utils::bufToHexString(encrypted.data(), encrypted.size()).c_str());
