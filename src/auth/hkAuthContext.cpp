@@ -114,7 +114,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
           LOG(I, "ATTESTATION Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
           LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", utils::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size(), true).c_str());
           persistentKey = std::get<3>(stdAuth);
-          foundEndpoint->endpoint_prst_k = persistentKey;
+          endpoint.endpoint_prst_k = persistentKey;
           LOG(D, "New Persistent Key: %s", utils::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
           foundEndpoint = &foundIssuer->endpoints.emplace_back(endpoint);
         }
