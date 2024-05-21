@@ -123,7 +123,7 @@ std::tuple<std::vector<uint8_t>, int> HK_HomeKit::provision_device_cred(std::vec
         endpoint.key_type = *keyType.data();
         endpoint.last_used_at = 0;
         // endpoint.enrollments.hap = hap;
-        endpoint.endpoint_id.insert(endpoint.endpoint_id.begin(), endpointId.begin(), endpointId.end() - 2);
+        endpoint.endpoint_id = std::vector<uint8_t>{ endpointId.begin(), endpointId.begin() + 6 };
         endpoint.endpoint_pk = devicePubKey;
         endpoint.endpoint_pk_x = x_coordinate;
         foundIssuer->endpoints.emplace_back(endpoint);
@@ -164,7 +164,7 @@ int HK_HomeKit::set_reader_key(std::vector<uint8_t> buf) {
     readerData.reader_id = uniqueIdentifier;
     std::vector<uint8_t> readeridentifier = utils::getHashIdentifier(readerData.reader_sk, true);
     LOG(D, "Reader GroupIdentifier: %s", utils::bufToHexString(readeridentifier.data(), 8).c_str());
-    readerData.reader_gid = readeridentifier;
+    readerData.reader_gid = std::vector<uint8_t>{readeridentifier.begin(), readeridentifier.begin() + 8};
     bool nvs = save_to_nvs();
     if (nvs) {
       return 0;
