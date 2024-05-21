@@ -136,7 +136,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       }
       if (flowUsed == kFlowATTESTATION || cmdFlowStatus.data()[0] == 0x90)
       {
-        nfc.inRelease();
+        nfc.setRFField(0x0, 0x0);
         LOG(I, "Endpoint authenticated, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
         return std::make_tuple(foundIssuer->issuer_id, foundEndpoint->endpoint_id, flowUsed);
       } else {
