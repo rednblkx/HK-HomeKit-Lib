@@ -109,7 +109,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
           std::vector<uint8_t> deviceKeyX = get_x(std::get<1>(attestation));
           endpoint.endpoint_pk_x = deviceKeyX;
           std::vector<uint8_t> eId = utils::getHashIdentifier(devicePubKey.data(), devicePubKey.size(), false);
-          endpoint.endpoint_id = eId;
+          endpoint.endpoint_id = std::vector<uint8_t>{eId.begin(), eId.begin() + 6};
           endpoint.endpoint_pk = devicePubKey;
           LOG(I, "ATTESTATION Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
           LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", utils::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size(), true).c_str());
