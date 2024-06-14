@@ -121,7 +121,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       }
       if(flowUsed >= kFlowSTANDARD && persistentKey.size() > 0){
         std::vector<uint8_t> cborBuf;
-        jsoncons::cbor::encode_cbor(readerData, cborBuf);
+        jsoncons::msgpack::encode_msgpack(readerData, cborBuf);
         esp_err_t set_nvs = nvs_set_blob(savedData, "READERDATA", cborBuf.data(), cborBuf.size());
         esp_err_t commit_nvs = nvs_commit(savedData);
         LOG(D, "NVS SET STATUS: %s", esp_err_to_name(set_nvs));
