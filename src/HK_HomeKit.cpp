@@ -177,7 +177,7 @@ int HK_HomeKit::set_reader_key(std::vector<uint8_t> buf) {
 
 bool HK_HomeKit::save_to_nvs() {
   std::vector<uint8_t> cborBuf;
-  jsoncons::cbor::encode_cbor(readerData, cborBuf);
+  jsoncons::msgpack::encode_msgpack(readerData, cborBuf);
   esp_err_t set_nvs = nvs_set_blob(nvsHandle, nvsKey, cborBuf.data(), cborBuf.size());
   esp_err_t commit_nvs = nvs_commit(nvsHandle);
   LOG(D, "NVS SET STATUS: %s", esp_err_to_name(set_nvs));
