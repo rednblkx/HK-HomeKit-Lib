@@ -5,16 +5,10 @@
 #ifndef ISO18013_SECURE_CONTEXT_H
 #define ISO18013_SECURE_CONTEXT_H
 
-#include <iostream>
-#include <vector>
-#include <cstdint>
-#include <cstring>
 #include <mbedtls/sha256.h>
 #include <mbedtls/hkdf.h>
 #include <mbedtls/aes.h>
 #include <mbedtls/gcm.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/ctr_drbg.h>
 #include <iomanip>
 #include <utils.h>
 #include <cbor.h>

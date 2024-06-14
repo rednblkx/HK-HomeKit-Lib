@@ -2,12 +2,9 @@
 #include <vector>
 #include <tuple>
 #include <mbedtls/ecp.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/hkdf.h>
 #include <mbedtls/md.h>
-#include <mbedtls/ecdsa.h>
 #include <mbedtls/ecdh.h>
+#include <mbedtls/ecdsa.h>
 #include <mbedtls/error.h>
 #include <esp_log.h>
 #include <utils.h>

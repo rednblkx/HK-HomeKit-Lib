@@ -115,7 +115,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
           persistentKey = std::get<3>(stdAuth);
           endpoint.endpoint_prst_k = persistentKey;
           LOG(D, "New Persistent Key: %s", utils::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
-          foundEndpoint = &foundIssuer->endpoints.emplace_back(endpoint);
+          foundEndpoint = &(*foundIssuer->endpoints.emplace(foundIssuer->endpoints.end(),endpoint));
         }
       }
       if(flowUsed >= kFlowSTANDARD && persistentKey.size() > 0){

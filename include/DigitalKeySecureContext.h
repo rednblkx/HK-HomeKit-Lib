@@ -9,9 +9,6 @@
 #include <mbedtls/aes.h>
 #include <mbedtls/cmac.h>
 #include <mbedtls/platform_util.h>
-#include <string.h>
-#include <algorithm>
-#include <vector>
 #include <utils.h>
 
 class DigitalKeySecureContext {

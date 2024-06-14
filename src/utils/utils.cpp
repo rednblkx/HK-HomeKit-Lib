@@ -1,5 +1,4 @@
 #include "utils.h"
-#include <list>
 
 namespace utils
 {

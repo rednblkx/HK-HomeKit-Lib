@@ -9,6 +9,7 @@
 #include <memory>
 #include <mbedtls/md.h>
 #include <mbedtls/cmac.h>
+#include <esp_log.h>
 
 class X963KDF {
 public:
@@ -19,6 +20,7 @@ public:
     void verify(const unsigned char* key_material, size_t key_material_len, const unsigned char* expected_key);
 
 private:
+    const char* TAG = "X963KDF";
     mbedtls_md_type_t algorithm;
     mbedtls_md_context_t md_ctx;
     size_t length;

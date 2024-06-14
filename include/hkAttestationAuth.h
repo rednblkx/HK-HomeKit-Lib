@@ -1,7 +1,6 @@
 #include <CommonCryptoUtils.h>
 #include <tuple>
 #include "HomeKey.h"
-#include <list>
 #include <vector>
 #include <BerTlv.h>
 #include <DigitalKeySecureContext.h>
@@ -11,7 +10,6 @@
 #include <ISO18013SecureContext.h>
 #include <sodium/crypto_sign_ed25519.h>
 #include <PN532.h>
-#include <freertos/FreeRTOS.h>
 #include <cbor.h>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/cbor/cbor.hpp>
@@ -24,7 +22,7 @@ class HKAttestationAuth
 {
 private:
   const char *TAG = "HKAttestAuth";
-  std::list<hkIssuer_t> &issuers;
+  std::vector<hkIssuer_t> &issuers;
   PN532& nfc;
   std::vector<uint8_t> attestation_exchange_common_secret;
   DigitalKeySecureContext &DKSContext;
@@ -34,6 +32,6 @@ private:
   std::tuple<hkIssuer_t*, std::vector<uint8_t>> verify(std::vector<uint8_t> &decryptedCbor);
 
 public:
-  HKAttestationAuth(std::list<hkIssuer_t> &issuers, DigitalKeySecureContext &context, PN532& nfc) : issuers(issuers), nfc(nfc), DKSContext(context){/* esp_log_level_set(TAG, ESP_LOG_VERBOSE); */};
+  HKAttestationAuth(std::vector<hkIssuer_t> &issuers, DigitalKeySecureContext &context, PN532& nfc) : issuers(issuers), nfc(nfc), DKSContext(context){/* esp_log_level_set(TAG, ESP_LOG_VERBOSE); */};
   std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> attest();
 };
