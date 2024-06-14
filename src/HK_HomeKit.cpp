@@ -1,9 +1,9 @@
 #include <HK_HomeKit.h>
 
-HK_HomeKit::HK_HomeKit(readerData_t& readerData, nvs_handle& nvsHandle, const char* nvsKey) : readerData(readerData), nvsHandle(nvsHandle), nvsKey(nvsKey) {
+HK_HomeKit::HK_HomeKit(readerData_t& readerData, nvs_handle& nvsHandle, const char* nvsKey, std::vector<uint8_t> &tlvData) : tlvData(tlvData), readerData(readerData), nvsHandle(nvsHandle), nvsKey(nvsKey) {
 }
 
-std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
+std::vector<uint8_t> HK_HomeKit::processResult() {
   TLV_it operation;
   TLV_it RKR;
   TLV_it DCR;

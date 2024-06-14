@@ -1,5 +1,4 @@
 #pragma once
-#include <cstdint>
 #include <string>
 #include <mbedtls/base64.h>
 #include <algorithm>

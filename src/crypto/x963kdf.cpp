@@ -16,6 +16,8 @@ X963KDF::X963KDF(mbedtls_md_type_t algorithm, size_t length, const unsigned char
 
 void X963KDF::derive(const unsigned char* key_material, size_t key_material_len, unsigned char* output) {
     if (used) {
+        ESP_LOGE(TAG, "Already finalized");
+        return;
         // throw std::logic_error("Already finalized");
     }
     used = true;
@@ -43,6 +45,8 @@ void X963KDF::verify(const unsigned char* key_material, size_t key_material_len,
     derive(key_material, key_material_len, derivedKey);
     if (!constant_time_eq(derivedKey, expected_key, length))
     {
+        ESP_LOGE(TAG, "Invalid key");
+        return;
         // throw std::invalid_argument("Invalid key");
     }
 }
