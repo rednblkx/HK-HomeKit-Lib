@@ -132,7 +132,7 @@ namespace jsoncons { template <class ChT > struct json_traits_macro_names<ChT, h
 
 struct readerData_t
 {
-  readerData_t() : reader_sk(32), reader_pk(65), reader_pk_x(32), reader_gid(8), reader_id(8), issuers(0) {}
+  readerData_t() : reader_sk(32), reader_pk(65), reader_pk_x(32), reader_gid(0), reader_id(0), issuers(0) {}
   std::vector<uint8_t> reader_sk;
   std::vector<uint8_t> reader_pk;
   std::vector<uint8_t> reader_pk_x;
