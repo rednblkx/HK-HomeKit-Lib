@@ -56,14 +56,14 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelo
   uint8_t ctrlFlow[4] = {0x80, 0x3c, 0x40, 0xa0};
   uint8_t ctrlFlowRes[8];
   uint16_t ctrlFlowResLen = 8;
-  nfc.inDataExchange(ctrlFlow, sizeof(ctrlFlow), ctrlFlowRes, &ctrlFlowResLen);
+  nfc(ctrlFlow, sizeof(ctrlFlow), ctrlFlowRes, &ctrlFlowResLen);
   LOG(D, "CTRL FLOW RES LENGTH: %d, DATA: %s", ctrlFlowResLen, utils::bufToHexString(ctrlFlowRes, ctrlFlowResLen).c_str());
   if (ctrlFlowRes[0] == 0x90 && ctrlFlowRes[1] == 0x0)
   { // cla=0x00; ins=0xa4; p1=0x04; p2=0x00; lc=0x07(7); data=a0000008580102; le=0x00
     uint8_t data[] = {0x00, 0xA4, 0x04, 0x00, 0x07, 0xA0, 0x00, 0x00, 0x08, 0x58, 0x01, 0x02, 0x0};
     uint8_t response[4];
     uint16_t responseLength = 4;
-    nfc.inDataExchange(data, sizeof(data), response, &responseLength);
+    nfc(data, sizeof(data), response, &responseLength);
     LOG(D, "ENV1.2 RES LENGTH: %d, DATA: %s", responseLength, utils::bufToHexString(response, responseLength).c_str());
     if (response[0] == 0x90 && response[1] == 0x0){
       unsigned char payload[] = {0x15, 0x91, 0x02, 0x02, 0x63, 0x72, 0x01, 0x02, 0x51, 0x02, 0x11, 0x61, 0x63, 0x01, 0x03, 0x6e, 0x66, 0x63, 0x01, 0x0a, 0x6d, 0x64, 0x6f, 0x63, 0x72, 0x65, 0x61, 0x64, 0x65, 0x72};
@@ -80,7 +80,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelo
       LOG(D, "APDU CMD LENGTH: %d, DATA: %s", sizeof(env1Apdu), utils::bufToHexString(env1Apdu, sizeof(env1Apdu)).c_str());
       uint8_t env1Res[128];
       uint16_t env1ResLen = 128;
-      nfc.inDataExchange(env1Apdu, sizeof(env1Apdu), env1Res, &env1ResLen);
+      nfc(env1Apdu, sizeof(env1Apdu), env1Res, &env1ResLen);
       LOG(D, "APDU RES LENGTH: %d, DATA: %s", env1ResLen, utils::bufToHexString(env1Res, env1ResLen).c_str());
       if (env1Res[env1ResLen - 2] == 0x90 && env1Res[env1ResLen - 1] == 0x0){
         return std::make_tuple(std::vector<unsigned char>{env1Res, env1Res + env1ResLen}, ndefMessage);
@@ -152,13 +152,13 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
     std::vector<unsigned char> attestation_package;
     uint8_t getData[5] = {0x0, 0xc0, 0x0, 0x0, 0x0};
     LOG(D, "ENV2 APDU Len: %d, Data: %s\n", sizeof(apdu), utils::bufToHexString(apdu, sizeof(apdu)).c_str());
-    nfc.inDataExchange(apdu, sizeof(apdu), env2Res, &newLen);
+    nfc(apdu, sizeof(apdu), env2Res, &newLen);
     attestation_package.insert(attestation_package.begin(), env2Res, env2Res + newLen - 2);
     LOG(D, "env2Res Len: %d, Data: %s\n", newLen, utils::bufToHexString(env2Res, newLen).c_str());
     while (env2Res[newLen - 2] == 0x61)
     {
       newLen = 256;
-      nfc.inDataExchange(getData, sizeof(getData), env2Res, &newLen);
+      nfc(getData, sizeof(getData), env2Res, &newLen);
       attestation_package.insert(attestation_package.end(), env2Res, env2Res + newLen - (newLen > 250 ? 2 : 0));
       LOG(D, "env2Res Len: %d, Data: %s\n", newLen, utils::bufToHexString(env2Res, newLen).c_str());
     }
@@ -280,7 +280,7 @@ std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attes
   LOG(V, "APDU CMD LENGTH: %d, DATA: %s", sizeof(xchApdu), utils::bufToHexString(xchApdu, sizeof(xchApdu)).c_str());
   uint8_t xchRes[16];
   uint16_t xchResLen = 16;
-  nfc.inDataExchange(xchApdu, sizeof(xchApdu), xchRes, &xchResLen);
+  nfc(xchApdu, sizeof(xchApdu), xchRes, &xchResLen);
   LOG(D, "APDU RES LENGTH: %d, DATA: %s", xchResLen, utils::bufToHexString(xchRes, xchResLen).c_str());
   if (xchResLen > 2 && xchRes[xchResLen - 2] == 0x90)
   {
