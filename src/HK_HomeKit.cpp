@@ -70,7 +70,7 @@ std::vector<uint8_t> HK_HomeKit::processResult(std::vector<uint8_t> tlvData) {
         dcrResTlv.Add(int_to_hex(kDevice_Credential_Response), dcrResSubTlv.GetTlv());
         LOG(D, "TLV LENGTH: %d, DATA: %s", dcrResTlv.GetTlv().size(), dcrResTlv.GetTlvAsHexString().c_str());
         esp_log_buffer_hex_internal(TAG, dcrResTlv.GetTlv().data(), dcrResTlv.GetTlv().size(), ESP_LOG_INFO);
-        return std::move(dcrResTlv.GetTlv());
+        return dcrResTlv.GetTlv();
       }
     }
   }
