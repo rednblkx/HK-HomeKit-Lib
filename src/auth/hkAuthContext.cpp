@@ -13,7 +13,7 @@
  * `nvs_handle`, which is a handle to a Non-Volatile Storage (NVS) namespace in ESP-IDF
  * (Espressif IoT Development Framework). This handle is used to access and manipulate data stored.
  */
-HKAuthenticationContext::HKAuthenticationContext(std::function<bool(uint8_t*, uint8_t, uint8_t*, uint16_t*, bool)> nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc)
+HKAuthenticationContext::HKAuthenticationContext(std::function<bool(uint8_t*, uint8_t, uint8_t*, uint16_t*, bool)> &nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc)
 {
   // esp_log_level_set(TAG, ESP_LOG_VERBOSE);
   auto startTime = std::chrono::high_resolution_clock::now();
@@ -61,7 +61,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
   std::vector<uint8_t> response(91);
   uint16_t responseLength = 91;
   LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), utils::bufToHexString(apdu.data(), apdu.size()).c_str());
-  nfc(apdu.data(), apdu.size(), response.data(), &responseLength);
+  nfc(apdu.data(), apdu.size(), response.data(), &responseLength, false);
   ESP_LOG_BUFFER_HEX_LEVEL(TAG, response.data(), responseLength, ESP_LOG_VERBOSE);
   response.resize(responseLength);
   LOG(D, "Auth0 Response Length: %d, DATA: %s", responseLength, utils::bufToHexString(response.data(), responseLength).c_str());
@@ -163,6 +163,6 @@ std::vector<uint8_t> HKAuthenticationContext::commandFlow(CommandFlowStatus stat
   std::vector<uint8_t> cmdFlowRes(4);
   uint16_t cmdFlowResLen = cmdFlowRes.size();
   LOG(D, "APDU: %s, Length: %d", utils::bufToHexString(apdu, sizeof(apdu)).c_str(), sizeof(apdu));
-  nfc(apdu, sizeof(apdu), cmdFlowRes.data(), &cmdFlowResLen);
+  nfc(apdu, sizeof(apdu), cmdFlowRes.data(), &cmdFlowResLen, false);
   return cmdFlowRes;
 }
