@@ -10,7 +10,6 @@
 #include <hkAttestationAuth.h>
 #include <TLV8.h>
 #include <freertos/FreeRTOS.h>
-#include <jsoncons_ext/msgpack/encode_msgpack.hpp>
 
 using namespace CommonCryptoUtils;
 using namespace utils;

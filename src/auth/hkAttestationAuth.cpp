@@ -180,13 +180,11 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
 }
 
 std::tuple<hkIssuer_t*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vector<uint8_t>& decryptedCbor) {
-  json root = cbor::decode_cbor<json>(decryptedCbor);
-
+  json root = json::from_cbor(decryptedCbor, false, false, nlohmann::json::cbor_tag_handler_t::store);
   hkIssuer_t* foundIssuer = nullptr;
-  
   std::vector<uint8_t> protectedHeaders;
   std::vector<uint8_t> issuerId;
-  json a = root.at_or_null("documents");
+  json a;
   json b;
   json c;
   json d;
@@ -197,66 +195,71 @@ std::tuple<hkIssuer_t*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vec
   std::vector<uint8_t> signature;
   json j_keyX;
   json j_keyY;
-  if (a.is_array() && a.size() > 0) {
-    b = a[0].at_or_null("issuerSigned").at_or_null("issuerAuth");
-    json ar = a[0].at_or_null("issuerSigned").at_or_null("issuerAuth");
-    if (ar.is_array() && ar.size() >= 4) {
-      protectedHeaders = ar[0].as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
-      signature = ar[3].as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
-      if (ar[1].at_or_null("4").is_byte_string()) {
-        issuerId = ar[1].at_or_null("4").as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
-      } else goto err;
-    } else goto err;
-  } else goto err;
-
-  if (b.is_array() && b.size() >= 3) {
-    data = b[2].as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
-    c = cbor::decode_cbor<json>(b[2].as_byte_string());
-    if (c.tag() != semantic_tag::ext) goto err;
-  } else goto err;
-
-  d = cbor::decode_cbor<json>(c.as_byte_string());
-  j_keyX = d.at_or_null("deviceKeyInfo").at_or_null("deviceKey").at_or_null("-2");
-  j_keyY = d.at_or_null("deviceKeyInfo").at_or_null("deviceKey").at_or_null("-3");
-  if (!j_keyX.is_byte_string()) goto err;
-  if (!j_keyY.is_byte_string()) goto err;
-  deviceKeyX = j_keyX.as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
-  deviceKeyY = j_keyY.as<std::vector<uint8_t>>(byte_string_arg, semantic_tag::none);
-  devicePubKey.push_back(0x04);
-  devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyX.begin()), std::make_move_iterator(deviceKeyX.end()));
-  devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyY.begin()), std::make_move_iterator(deviceKeyY.end()));
-
-
-  for (auto &&issuer : issuers)
-  {
-    if (std::equal(issuer.issuer_id.begin(), issuer.issuer_id.end(), issuerId.begin())) {
-      LOG(D, "Found Issuer: %s", utils::bufToHexString(issuer.issuer_id.data(), issuer.issuer_id.size()).c_str());
-      foundIssuer = &issuer;
+  if (!root.is_discarded() && root.contains("documents")) {
+    a = root.at("documents");
+    if (a.is_array() && a.size() > 0) {
+      b = a[0].at("issuerSigned").at("issuerAuth");
+      json ar = a[0].at("issuerSigned").at("issuerAuth");
+      if (ar.is_array() && ar.size() >= 4 && ar[0].is_binary() && ar[3].is_binary()) {
+        protectedHeaders = ar[0].get_binary();
+        signature = ar[3].get_binary();
+        if (ar[1].at("4").is_binary()) {
+          issuerId = ar[1].at("4").get_binary();
+        }
+        else goto err;
+      }
+      else goto err;
     }
-  }
+    else goto err;
 
-  if (foundIssuer != nullptr) {
-    CborEncoder package;
-    std::vector<uint8_t> packageBuf(strlen("Signature1") + protectedHeaders.size() + data.size() + 8);
-    cbor_encoder_init(&package, packageBuf.data(), packageBuf.size(), 0);
-    CborEncoder packageArray;
-    cbor_encoder_create_array(&package, &packageArray, 4);
-    cbor_encode_text_stringz(&packageArray, "Signature1");
-    cbor_encode_byte_string(&packageArray, protectedHeaders.data(), protectedHeaders.size());
-    cbor_encode_byte_string(&packageArray, {}, 0);
-    cbor_encode_byte_string(&packageArray, data.data(), data.size());
-    cbor_encoder_close_container(&package, &packageArray);
-    size_t package_size = cbor_encoder_get_buffer_size(&package, packageBuf.data());
-    LOG(D, "CBOR SIZE: %d", package_size);
-    LOG(D, "SIGNED PACKAGE: %s", utils::bufToHexString(packageBuf.data(), package_size).c_str());
-
-    int res = crypto_sign_ed25519_verify_detached(signature.data(), packageBuf.data(), package_size, foundIssuer->issuer_pk.data());
-    if (res) {
-      LOG(E, "Failed to verify attestation signature: %d", res);
-      goto err;
+    if (b.is_array() && b.size() >= 3 && b[2].is_binary()) {
+      data = b[2].get_binary();
+      c = json::from_cbor(data, false, true, json::cbor_tag_handler_t::store);
+      if (!c.get_binary().has_subtype()) goto err;
     }
-    return std::make_tuple(foundIssuer, devicePubKey);
+    else goto err;
+
+    d = json::from_cbor(c.get_binary(), false, true, json::cbor_tag_handler_t::store);
+    j_keyX = d.at("deviceKeyInfo").at("deviceKey").at("-2");
+    j_keyY = d.at("deviceKeyInfo").at("deviceKey").at("-3");
+    if (!j_keyX.is_binary()) goto err;
+    if (!j_keyY.is_binary()) goto err;
+    deviceKeyX = j_keyX.get_binary();
+    deviceKeyY = j_keyY.get_binary();
+    devicePubKey.push_back(0x04);
+    devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyX.begin()), std::make_move_iterator(deviceKeyX.end()));
+    devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyY.begin()), std::make_move_iterator(deviceKeyY.end()));
   }
+    for (auto &&issuer : issuers)
+    {
+      if (std::equal(issuer.issuer_id.begin(), issuer.issuer_id.end(), issuerId.begin())) {
+        LOG(D, "Found Issuer: %s", utils::bufToHexString(issuer.issuer_id.data(), issuer.issuer_id.size()).c_str());
+        foundIssuer = &issuer;
+      }
+    }
+
+    if (foundIssuer != nullptr) {
+      CborEncoder package;
+      std::vector<uint8_t> packageBuf(strlen("Signature1") + protectedHeaders.size() + data.size() + 8);
+      cbor_encoder_init(&package, packageBuf.data(), packageBuf.size(), 0);
+      CborEncoder packageArray;
+      cbor_encoder_create_array(&package, &packageArray, 4);
+      cbor_encode_text_stringz(&packageArray, "Signature1");
+      cbor_encode_byte_string(&packageArray, protectedHeaders.data(), protectedHeaders.size());
+      cbor_encode_byte_string(&packageArray, {}, 0);
+      cbor_encode_byte_string(&packageArray, data.data(), data.size());
+      cbor_encoder_close_container(&package, &packageArray);
+      size_t package_size = cbor_encoder_get_buffer_size(&package, packageBuf.data());
+      LOG(D, "CBOR SIZE: %d", package_size);
+      LOG(D, "SIGNED PACKAGE: %s", utils::bufToHexString(packageBuf.data(), package_size).c_str());
+
+      int res = crypto_sign_ed25519_verify_detached(signature.data(), packageBuf.data(), package_size, foundIssuer->issuer_pk.data());
+      if (res) {
+        LOG(E, "Failed to verify attestation signature: %d", res);
+        goto err;
+      }
+      return std::make_tuple(foundIssuer, devicePubKey);
+    }
   err:
     return std::make_tuple(foundIssuer, std::vector<uint8_t>());
 }
