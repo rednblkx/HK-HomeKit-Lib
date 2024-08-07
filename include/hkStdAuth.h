@@ -5,13 +5,13 @@
 #include <mbedtls/hkdf.h>
 #include <DigitalKeySecureContext.h>
 #include <x963kdf.h>
-#include <utils.h>
+#include <hk-utils.h>
 #include <list>
 #include <TLV8.h>
 #include <functional>
 
 using namespace CommonCryptoUtils;
-using namespace utils;
+using namespace hk_utils;
 
 class HKStdAuth
 {

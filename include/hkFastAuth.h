@@ -2,11 +2,11 @@
 #include <tuple>
 #include "HomeKey.h"
 #include <list>
-#include <utils.h>
+#include <hk-utils.h>
 #include <mbedtls/hkdf.h>
 
 using namespace CommonCryptoUtils;
-using namespace utils;
+using namespace hk_utils;
 
 class HKFastAuth
 {

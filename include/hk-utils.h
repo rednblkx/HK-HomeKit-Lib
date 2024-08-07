@@ -11,7 +11,7 @@
 #include <sstream>
 #include <iomanip>
 #define LOG(x, format, ...) ESP_LOG##x(TAG, "%s > " format, __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-namespace utils
+namespace hk_utils
 {
   std::string int_to_hex(int i);
   void pack(const uint8_t *buf, size_t buflen, uint8_t *out, size_t *olen);

@@ -94,7 +94,7 @@ namespace CommonCryptoUtils
     size_t olen = 0;
     int ecp_write = mbedtls_ecp_point_write_binary(&ephemeral.private_grp, &ephemeral.private_Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, bufPub.data(), bufPub.capacity());
     if(!ecp_write){
-      LOG(D, "Ephemeral Key generated -- private: %s, public: %s", utils::bufToHexString(bufPriv.data(), bufPriv.size()).c_str(), utils::bufToHexString(bufPub.data(), bufPub.size()).c_str());
+      LOG(D, "Ephemeral Key generated -- private: %s, public: %s", hk_utils::bufToHexString(bufPriv.data(), bufPriv.size()).c_str(), hk_utils::bufToHexString(bufPub.data(), bufPub.size()).c_str());
     } else{
       LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
       return std::make_tuple(std::vector<uint8_t>(), std::vector<uint8_t>());
@@ -129,7 +129,7 @@ namespace CommonCryptoUtils
     int ecp_write = mbedtls_mpi_write_binary(&point.private_X, X.data(), buffer_size_x);
     if(ecp_write != 0)
       LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
-    LOG(V, "PublicKey: %s, X Coordinate: %s", utils::bufToHexString(pubKey.data(), pubKey.size()).c_str(), utils::bufToHexString(X.data(), X.size()).c_str());
+    LOG(V, "PublicKey: %s, X Coordinate: %s", hk_utils::bufToHexString(pubKey.data(), pubKey.size()).c_str(), hk_utils::bufToHexString(X.data(), X.size()).c_str());
     mbedtls_ecp_group_free(&grp);
     mbedtls_ecp_point_free(&point);
     return X;
@@ -164,7 +164,7 @@ namespace CommonCryptoUtils
       LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
       return std::vector<uint8_t>();
     }
-    LOG(V, "PublicKey: %s, X Coordinate: %s", utils::bufToHexString(pubKey, len).c_str(), utils::bufToHexString(X.data(), X.size()).c_str());
+    LOG(V, "PublicKey: %s, X Coordinate: %s", hk_utils::bufToHexString(pubKey, len).c_str(), hk_utils::bufToHexString(X.data(), X.size()).c_str());
     mbedtls_ecp_group_free(&grp);
     mbedtls_ecp_point_free(&point);
     return X;

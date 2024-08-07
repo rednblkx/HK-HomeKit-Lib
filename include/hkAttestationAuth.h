@@ -7,7 +7,7 @@
 #include <DigitalKeySecureContext.h>
 #include <x963kdf.h>
 #include <ndef.h>
-#include <utils.h>
+#include <hk-utils.h>
 #include <ISO18013SecureContext.h>
 #include <sodium/crypto_sign_ed25519.h>
 #include <freertos/FreeRTOS.h>
@@ -16,7 +16,7 @@
 
 using json = nlohmann::json;
 using namespace CommonCryptoUtils;
-using namespace utils;
+using namespace hk_utils;
 
 class HKAttestationAuth
 {

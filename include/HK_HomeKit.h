@@ -1,6 +1,6 @@
 #include <tuple>
 #include "HomeKey.h"
-#include <utils.h>
+#include <hk-utils.h>
 #include <nvs.h>
 #include <CommonCryptoUtils.h>
 #include <BerTlv.h>
@@ -8,7 +8,7 @@
 #include "TLV8.h"
 
 using namespace CommonCryptoUtils;
-using namespace utils;
+using namespace hk_utils;
 
 class HK_HomeKit
 {

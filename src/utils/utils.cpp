@@ -1,6 +1,6 @@
-#include "utils.h"
+#include "hk-utils.h"
 
-namespace utils
+namespace hk_utils
 {
   std::string int_to_hex( int i )
   {

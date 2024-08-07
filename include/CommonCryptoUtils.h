@@ -7,7 +7,7 @@
 #include <mbedtls/ecdsa.h>
 #include <mbedtls/error.h>
 #include <esp_log.h>
-#include <utils.h>
+#include <hk-utils.h>
 #include <esp_random.h>
 
 namespace CommonCryptoUtils

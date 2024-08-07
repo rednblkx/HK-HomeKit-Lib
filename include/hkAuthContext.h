@@ -12,7 +12,7 @@
 #include <freertos/FreeRTOS.h>
 
 using namespace CommonCryptoUtils;
-using namespace utils;
+using namespace hk_utils;
 
 class HKAuthenticationContext
 {

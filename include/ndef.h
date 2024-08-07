@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <vector>
 #include <initializer_list>
-#include <utils.h>
+#include <hk-utils.h>
 
 class NDEFRecord
 {

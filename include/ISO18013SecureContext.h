@@ -10,7 +10,7 @@
 #include <mbedtls/aes.h>
 #include <mbedtls/gcm.h>
 #include <iomanip>
-#include <utils.h>
+#include <hk-utils.h>
 #include <cbor.h>
 #include <nlohmann/json.hpp>
 

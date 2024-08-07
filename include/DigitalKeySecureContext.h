@@ -9,7 +9,7 @@
 #include <mbedtls/aes.h>
 #include <mbedtls/cmac.h>
 #include <mbedtls/platform_util.h>
-#include <utils.h>
+#include <hk-utils.h>
 
 class DigitalKeySecureContext {
 public:

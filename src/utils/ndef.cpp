@@ -67,7 +67,7 @@ std::vector<unsigned char> NDEFMessage::pack()
   }
   this->packedData.clear();
   this->packedData.insert(this->packedData.begin(), result, result + olen);
-  LOG(D, "NDEF MSG PACKED - LENGTH: %d, DATA: %s", packedData.size(), utils::bufToHexString(packedData.data(), packedData.size()).c_str());
+  LOG(D, "NDEF MSG PACKED - LENGTH: %d, DATA: %s", packedData.size(), hk_utils::bufToHexString(packedData.data(), packedData.size()).c_str());
   return this->packedData;
 }
 
@@ -124,7 +124,7 @@ std::vector<NDEFRecord> NDEFMessage::unpack(){
     payload_vec.push_back('\0');
     i += payload_length[0];
     
-    LOG(D, "NDEF RECORD ID: %s, TNF: %d, TYPE: %s, PAYLOAD: %s", utils::bufToHexString(id_vec.data(), id_vec.size()).c_str(), (int)tnf, utils::bufToHexString(type_vec.data(), type_vec.size()).c_str(), utils::bufToHexString(payload_vec.data(), payload_vec.size()).c_str());
+    LOG(D, "NDEF RECORD ID: %s, TNF: %d, TYPE: %s, PAYLOAD: %s", hk_utils::bufToHexString(id_vec.data(), id_vec.size()).c_str(), (int)tnf, hk_utils::bufToHexString(type_vec.data(), type_vec.size()).c_str(), hk_utils::bufToHexString(payload_vec.data(), payload_vec.size()).c_str());
     records.emplace_back(id_vec, tnf, type_vec, payload_vec);
   }
   this->records.insert(this->records.begin(), records.data(), records.data() + records.size());
@@ -140,6 +140,6 @@ NDEFRecord* NDEFMessage::findType(const char * type){
       break;
     }
   }
-  LOG(D, "NDEF RECORD ID: %s, TNF: %s, TYPE: %s, PAYLOAD: %s", utils::bufToHexString(foundRecord->id.data(), foundRecord->id.size()).c_str(), utils::bufToHexString(&foundRecord->tnf, 1).c_str(), utils::bufToHexString(foundRecord->type.data(), foundRecord->type.size()).c_str(), utils::bufToHexString(foundRecord->data.data(), foundRecord->data.size()).c_str());
+  LOG(D, "NDEF RECORD ID: %s, TNF: %s, TYPE: %s, PAYLOAD: %s", hk_utils::bufToHexString(foundRecord->id.data(), foundRecord->id.size()).c_str(), hk_utils::bufToHexString(&foundRecord->tnf, 1).c_str(), hk_utils::bufToHexString(foundRecord->type.data(), foundRecord->type.size()).c_str(), hk_utils::bufToHexString(foundRecord->data.data(), foundRecord->data.size()).c_str());
   return foundRecord;
 }
