@@ -1,6 +1,5 @@
 #include <tuple>
 #include "HomeKey.h"
-#include <jsoncons_ext/msgpack/msgpack.hpp>
 #include <utils.h>
 #include <nvs.h>
 #include <CommonCryptoUtils.h>

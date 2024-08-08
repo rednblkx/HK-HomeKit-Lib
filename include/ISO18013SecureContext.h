@@ -12,10 +12,9 @@
 #include <iomanip>
 #include <utils.h>
 #include <cbor.h>
-#include <jsoncons/json.hpp>
-#include <jsoncons_ext/cbor/cbor.hpp>
+#include <nlohmann/json.hpp>
 
-using namespace jsoncons;
+using json = nlohmann::json;
 
 class ISO18013SecureContext {
 public:

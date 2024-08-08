@@ -13,9 +13,7 @@
   ],
   "license": "MIT",
   "homepage": "",
-  "dependencies": {
-    "jsoncons": "https://github.com/rednblkx/jsoncons.git"
-  },
+  "dependencies": {},
   "frameworks": ["espidf", "arduino"],
   "platforms": ["espressif8266", "espressif32"]
 }

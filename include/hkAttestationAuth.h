@@ -11,10 +11,8 @@
 #include <sodium/crypto_sign_ed25519.h>
 #include <PN532.h>
 #include <cbor.h>
-#include <jsoncons/json.hpp>
-#include <jsoncons_ext/cbor/cbor.hpp>
 
-using namespace jsoncons;
+using json = nlohmann::json;
 using namespace CommonCryptoUtils;
 using namespace utils;
 
