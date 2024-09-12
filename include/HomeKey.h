@@ -115,26 +115,34 @@ struct hkEndpoint_t
   std::vector<uint8_t> endpoint_pk_x;
   std::vector<uint8_t> endpoint_prst_k;
   // hkEnrollments_t enrollments;
+  friend void to_json(nlohmann::json& nlohmann_json_j, const hkEndpoint_t& nlohmann_json_t) {
+    nlohmann_json_j["endpointId"] = nlohmann_json_t.endpoint_id;
+    nlohmann_json_j["last_used_at"] = nlohmann_json_t.last_used_at;
+    nlohmann_json_j["counter"] = nlohmann_json_t.counter;
+    nlohmann_json_j["key_type"] = nlohmann_json_t.key_type;
+    nlohmann_json_j["publicKey"] = nlohmann_json_t.endpoint_pk;
+    nlohmann_json_j["endpoint_key_x"] = nlohmann_json_t.endpoint_pk_x;
+    nlohmann_json_j["persistent_key"] = nlohmann_json_t.endpoint_prst_k;
+  }
+  friend void from_json(const nlohmann::json& nlohmann_json_j, hkEndpoint_t& nlohmann_json_t) {
+    const hkEndpoint_t nlohmann_json_default_obj{};
+    if (nlohmann_json_j.contains("endpointId") && nlohmann_json_j["endpointId"].is_binary()) {
+      nlohmann_json_t.endpoint_id = nlohmann_json_j["endpointId"].get_binary();
+      nlohmann_json_t.endpoint_pk_x = nlohmann_json_j["endpoint_key_x"].get_binary();
+      nlohmann_json_t.endpoint_prst_k = nlohmann_json_j["persistent_key"].get_binary();
+      nlohmann_json_t.endpoint_pk = nlohmann_json_j["publicKey"].get_binary();
+    }
+    else {
+      nlohmann_json_t.endpoint_id = nlohmann_json_j.value("endpointId", nlohmann_json_default_obj.endpoint_id);
+      nlohmann_json_t.endpoint_pk = nlohmann_json_j.value("publicKey", nlohmann_json_default_obj.endpoint_pk);
+      nlohmann_json_t.endpoint_pk_x = nlohmann_json_j.value("endpoint_key_x", nlohmann_json_default_obj.endpoint_pk_x);
+      nlohmann_json_t.endpoint_prst_k = nlohmann_json_j.value("persistent_key", nlohmann_json_default_obj.endpoint_prst_k);
+    }
+    nlohmann_json_t.last_used_at = nlohmann_json_j.value("last_used_at", nlohmann_json_default_obj.last_used_at);
+    nlohmann_json_t.counter = nlohmann_json_j.value("counter", nlohmann_json_default_obj.counter);
+    nlohmann_json_t.key_type = nlohmann_json_j.value("key_type", nlohmann_json_default_obj.key_type);
+  }
 };
-
-inline void to_json(json &j, const hkEndpoint_t &p)
-{
-  j = json{{"endpointId", p.endpoint_id}, {"last_used_at", p.last_used_at}, {"counter", p.counter}, {"key_type", p.key_type}, {"publicKey", p.endpoint_pk}, {"endpoint_key_x", p.endpoint_pk_x}, {"persistent_key", p.endpoint_prst_k}};
-}
-
-inline void from_json(const json &j, hkEndpoint_t &p)
-{
-  j.at("endpointId").get_to(p.endpoint_id);
-  j.at("publicKey").get_to(p.endpoint_pk);
-  j.at("endpoint_key_x").get_to(p.endpoint_pk_x);
-  j.at("persistent_key").get_to(p.endpoint_prst_k);
-  j.at("last_used_at").get_to(p.last_used_at);
-  j.at("counter").get_to(p.counter);
-  j.at("key_type").get_to(p.key_type);
-}
-
-// JSONCONS_ALL_MEMBER_TRAITS(hkEndpoint_t, endpoint_id, last_used_at, counter, key_type, endpoint_pk, endpoint_pk_x, endpoint_prst_k)
-// namespace jsoncons { template <class ChT > struct json_traits_macro_names<ChT,hkEndpoint_t > { static inline const char* endpointId_str(char) {return "endpointId";} static inline const wchar_t* endpointId_str(wchar_t) {return L"endpointId";} static inline const char* last_used_at_str(char) {return "last_used_at";} static inline const wchar_t* last_used_at_str(wchar_t) {return L"last_used_at";} static inline const char* counter_str(char) {return "counter";} static inline const wchar_t* counter_str(wchar_t) {return L"counter";} static inline const char* key_type_str(char) {return "key_type";} static inline const wchar_t* key_type_str(wchar_t) {return L"key_type";} static inline const char* publicKey_str(char) {return "publicKey";} static inline const wchar_t* publicKey_str(wchar_t) {return L"publicKey";} static inline const char* endpoint_key_x_str(char) {return "endpoint_key_x";} static inline const wchar_t* endpoint_key_x_str(wchar_t) {return L"endpoint_key_x";} static inline const char* persistent_key_str(char) {return "persistent_key";} static inline const wchar_t* persistent_key_str(wchar_t) {return L"persistent_key";} }; template<typename Json > struct json_type_traits<Json, hkEndpoint_t > { using value_type = hkEndpoint_t ; using allocator_type = typename Json::allocator_type; using char_type = typename Json::char_type; using string_view_type = typename Json::string_view_type; constexpr static size_t num_params = 7; constexpr static size_t num_mandatory_params1 = 7; constexpr static size_t num_mandatory_params2 = 7; static bool is(const Json& ajson) noexcept { if (!ajson.is_object()) return false; if ((num_params-7) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type,value_type>::endpointId_str(char_type{}))) return false; if ((num_params-6) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type,value_type>::last_used_at_str(char_type{}))) return false; if ((num_params-5) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type,value_type>::counter_str(char_type{}))) return false; if ((num_params-4) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type,value_type>::key_type_str(char_type{}))) return false; if ((num_params-3) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type,value_type>::publicKey_str(char_type{}))) return false; if ((num_params-2) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type,value_type>::endpoint_key_x_str(char_type{}))) return false; if ((num_params-1) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type,value_type>::persistent_key_str(char_type{}))) return false; return true; } static value_type as(const Json& ajson) { if (!is(ajson)) throw conv_error(conv_errc::conversion_failed, "Not a " "hkEndpoint_t"); value_type aval{}; json_traits_helper<Json>::set_udt_member(ajson,json_traits_macro_names<char_type,value_type>::endpointId_str(char_type{}),aval.endpoint_id); json_traits_helper<Json>::set_udt_member(ajson,json_traits_macro_names<char_type,value_type>::last_used_at_str(char_type{}),aval.last_used_at); json_traits_helper<Json>::set_udt_member(ajson,json_traits_macro_names<char_type,value_type>::counter_str(char_type{}),aval.counter); json_traits_helper<Json>::set_udt_member(ajson,json_traits_macro_names<char_type,value_type>::key_type_str(char_type{}),aval.key_type); json_traits_helper<Json>::set_udt_member(ajson,json_traits_macro_names<char_type,value_type>::publicKey_str(char_type{}),aval.endpoint_pk); json_traits_helper<Json>::set_udt_member(ajson,json_traits_macro_names<char_type,value_type>::endpoint_key_x_str(char_type{}),aval.endpoint_pk_x); json_traits_helper<Json>::set_udt_member(ajson,json_traits_macro_names<char_type,value_type>::persistent_key_str(char_type{}),aval.endpoint_prst_k); return aval; } static Json to_json(const value_type& aval, allocator_type alloc=allocator_type()) { Json ajson(json_object_arg, semantic_tag::none, alloc); ajson.try_emplace(json_traits_macro_names<char_type,value_type>::endpointId_str(char_type{}), Json(byte_string_arg, aval.endpoint_id)); ajson.try_emplace(json_traits_macro_names<char_type,value_type>::last_used_at_str(char_type{}), aval.last_used_at); ajson.try_emplace(json_traits_macro_names<char_type,value_type>::counter_str(char_type{}), aval.counter); ajson.try_emplace(json_traits_macro_names<char_type,value_type>::key_type_str(char_type{}), aval.key_type); ajson.try_emplace(json_traits_macro_names<char_type,value_type>::publicKey_str(char_type{}), Json(byte_string_arg, aval.endpoint_pk)); ajson.try_emplace(json_traits_macro_names<char_type,value_type>::endpoint_key_x_str(char_type{}), Json(byte_string_arg, aval.endpoint_pk_x)); ajson.try_emplace(json_traits_macro_names<char_type,value_type>::persistent_key_str(char_type{}), Json(byte_string_arg, aval.endpoint_prst_k)); return ajson; } }; } namespace jsoncons { template <> struct is_json_type_traits_declared<hkEndpoint_t> : public std::true_type {}; }
 
 struct hkIssuer_t
 {
@@ -142,44 +150,60 @@ struct hkIssuer_t
   std::vector<uint8_t> issuer_pk;
   std::vector<uint8_t> issuer_pk_x;
   std::vector<hkEndpoint_t> endpoints;
+  friend void to_json(nlohmann::json& nlohmann_json_j, const hkIssuer_t& nlohmann_json_t) {
+    nlohmann_json_j["issuerId"] = nlohmann_json_t.issuer_id;
+    nlohmann_json_j["publicKey"] = nlohmann_json_t.issuer_pk;
+    nlohmann_json_j["issuer_key_x"] = nlohmann_json_t.issuer_pk_x;
+    nlohmann_json_j["endpoints"] = nlohmann_json_t.endpoints;
+  }
+  friend void from_json(const nlohmann::json& nlohmann_json_j, hkIssuer_t& nlohmann_json_t) {
+    const hkIssuer_t nlohmann_json_default_obj{};
+    if (nlohmann_json_j.contains("issuerId") && nlohmann_json_j["issuerId"].is_binary()) {
+      nlohmann_json_t.issuer_id = nlohmann_json_j["issuerId"].get_binary();
+      nlohmann_json_t.issuer_pk = nlohmann_json_j["publicKey"].get_binary();
+      nlohmann_json_t.issuer_pk_x = nlohmann_json_j["issuer_key_x"].get_binary();
+    }
+    else {
+      nlohmann_json_t.issuer_id = nlohmann_json_j.value("issuerId", nlohmann_json_default_obj.issuer_id);
+      nlohmann_json_t.issuer_pk = nlohmann_json_j.value("publicKey", nlohmann_json_default_obj.issuer_pk);
+      nlohmann_json_t.issuer_pk_x = nlohmann_json_j.value("issuer_key_x", nlohmann_json_default_obj.issuer_pk_x);
+      nlohmann_json_t.endpoints = nlohmann_json_j.value("endpoints", nlohmann_json_default_obj.endpoints);
+    }
+  }
 };
-inline void to_json(json &j, const hkIssuer_t &p)
-{
-  j = json{{"issuerId", p.issuer_id}, {"publicKey", p.issuer_pk}, {"issuer_key_x", p.issuer_pk_x}, {"endpoints", p.endpoints}};
-}
-
-inline void from_json(const json &j, hkIssuer_t &p)
-{
-  j.at("issuerId").get_to(p.issuer_id);
-  j.at("publicKey").get_to(p.issuer_pk);
-  j.at("issuer_key_x").get_to(p.issuer_pk_x);
-  j.at("endpoints").get_to(p.endpoints);
-}
-// JSONCONS_ALL_MEMBER_TRAITS(hkIssuer_t, issuer_id, issuer_pk, issuer_pk_x, endpoints)
-// namespace jsoncons { template <class ChT > struct json_traits_macro_names<ChT, hkIssuer_t > { static inline const char* issuerId_str(char) { return "issuerId"; } static inline const wchar_t* issuerId_str(wchar_t) { return L"issuerId"; } static inline const char* publicKey_str(char) { return "publicKey"; } static inline const wchar_t* publicKey_str(wchar_t) { return L"publicKey"; } static inline const char* issuer_key_x_str(char) { return "issuer_key_x"; } static inline const wchar_t* issuer_key_x_str(wchar_t) { return L"issuer_key_x"; } static inline const char* endpoints_str(char) { return "endpoints"; } static inline const wchar_t* endpoints_str(wchar_t) { return L"endpoints"; } }; template<typename Json > struct json_type_traits<Json, hkIssuer_t > { using value_type = hkIssuer_t; using allocator_type = typename Json::allocator_type; using char_type = typename Json::char_type; using string_view_type = typename Json::string_view_type; constexpr static size_t num_params = 4; constexpr static size_t num_mandatory_params1 = 4; constexpr static size_t num_mandatory_params2 = 4; static bool is(const Json& ajson) noexcept { if (!ajson.is_object()) return false; if ((num_params - 4) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type, value_type>::issuerId_str(char_type{}))) return false; if ((num_params - 3) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type, value_type>::publicKey_str(char_type{}))) return false; if ((num_params - 2) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type, value_type>::issuer_key_x_str(char_type{}))) return false; if ((num_params - 1) < num_mandatory_params1 && !ajson.contains(json_traits_macro_names<char_type, value_type>::endpoints_str(char_type{}))) return false; return true; } static value_type as(const Json& ajson) { if (!is(ajson)) throw conv_error(conv_errc::conversion_failed, "Not a " "hkIssuer_t"); value_type aval{}; json_traits_helper<Json>::set_udt_member(ajson, json_traits_macro_names<char_type, value_type>::issuerId_str(char_type{}), aval.issuer_id); json_traits_helper<Json>::set_udt_member(ajson, json_traits_macro_names<char_type, value_type>::publicKey_str(char_type{}), aval.issuer_pk); json_traits_helper<Json>::set_udt_member(ajson, json_traits_macro_names<char_type, value_type>::issuer_key_x_str(char_type{}), aval.issuer_pk_x); json_traits_helper<Json>::set_udt_member(ajson, json_traits_macro_names<char_type, value_type>::endpoints_str(char_type{}), aval.endpoints); return aval; } static Json to_json(const value_type& aval, allocator_type alloc = allocator_type()) { Json ajson(json_object_arg, semantic_tag::none, alloc); ajson.try_emplace(json_traits_macro_names<char_type, value_type>::issuerId_str(char_type{}), Json(byte_string_arg, aval.issuer_id)); ajson.try_emplace(json_traits_macro_names<char_type, value_type>::publicKey_str(char_type{}), Json(byte_string_arg, aval.issuer_pk)); ajson.try_emplace(json_traits_macro_names<char_type, value_type>::issuer_key_x_str(char_type{}), Json(byte_string_arg, aval.issuer_pk_x)); ajson.try_emplace(json_traits_macro_names<char_type, value_type>::endpoints_str(char_type{}), aval.endpoints); return ajson; } }; } namespace jsoncons { template <> struct is_json_type_traits_declared<hkIssuer_t> : public std::true_type {}; }
 
 struct readerData_t
 {
-  readerData_t() : reader_sk(32), reader_pk(65), reader_pk_x(32), reader_gid(0), reader_id(0), issuers(0) {}
+  readerData_t() : reader_sk(32), reader_pk(65), reader_pk_x(0), reader_gid(0), reader_id(0), issuers(0) {}
   std::vector<uint8_t> reader_sk;
   std::vector<uint8_t> reader_pk;
   std::vector<uint8_t> reader_pk_x;
   std::vector<uint8_t> reader_gid;
   std::vector<uint8_t> reader_id;
   std::vector<hkIssuer_t> issuers;
+  friend void to_json(nlohmann::json& nlohmann_json_j, const readerData_t& nlohmann_json_t) {
+    nlohmann_json_j["reader_private_key"] = nlohmann_json_t.reader_sk;
+    nlohmann_json_j["reader_public_key"] = nlohmann_json_t.reader_pk;
+    nlohmann_json_j["reader_key_x"] = nlohmann_json_t.reader_pk_x;
+    nlohmann_json_j["group_identifier"] = nlohmann_json_t.reader_gid;
+    nlohmann_json_j["unique_identifier"] = nlohmann_json_t.reader_id;
+    nlohmann_json_j["issuers"] = nlohmann_json_t.issuers;
+  }
+  friend void from_json(const nlohmann::json& nlohmann_json_j, readerData_t& nlohmann_json_t) {
+    const readerData_t nlohmann_json_default_obj{};
+    if (nlohmann_json_j.contains("group_identifier") && nlohmann_json_j["group_identifier"].is_binary()) {
+      nlohmann_json_t.reader_sk = nlohmann_json_j["reader_private_key"].get_binary();
+      nlohmann_json_t.reader_pk_x = nlohmann_json_j["reader_key_x"].get_binary();
+      nlohmann_json_t.reader_gid = nlohmann_json_j["group_identifier"].get_binary();
+      nlohmann_json_t.reader_id = nlohmann_json_j["unique_identifier"].get_binary();
+      nlohmann_json_t.reader_pk = nlohmann_json_j["reader_public_key"].get_binary();
+    } else {
+      nlohmann_json_t.reader_sk = nlohmann_json_j.value("reader_private_key", nlohmann_json_default_obj.reader_sk);
+      nlohmann_json_t.reader_pk = nlohmann_json_j.value("reader_public_key", nlohmann_json_default_obj.reader_pk);
+      nlohmann_json_t.reader_pk_x = nlohmann_json_j.value("reader_key_x", nlohmann_json_default_obj.reader_pk_x);
+      nlohmann_json_t.reader_gid = nlohmann_json_j.value("group_identifier", nlohmann_json_default_obj.reader_gid);
+      nlohmann_json_t.reader_id = nlohmann_json_j.value("unique_identifier", nlohmann_json_default_obj.reader_id);
+    }
+    nlohmann_json_t.issuers = nlohmann_json_j.value("issuers", nlohmann_json_default_obj.issuers);
+  }
 };
-
-inline void to_json(json &j, const readerData_t &p)
-{
-  j = json{{"reader_private_key", p.reader_sk}, {"reader_public_key", p.reader_pk}, {"reader_key_x", p.reader_pk_x}, {"unique_identifier", p.reader_id}, {"group_identifier", p.reader_gid}, {"issuers", p.issuers}};
-}
-
-inline void from_json(const json &j, readerData_t &p)
-{
-  j.at("reader_private_key").get_to(p.reader_sk);
-  j.at("reader_public_key").get_to(p.reader_pk);
-  j.at("reader_key_x").get_to(p.reader_pk_x);
-  j.at("unique_identifier").get_to(p.reader_id);
-  j.at("group_identifier").get_to(p.reader_gid);
-  j.at("issuers").get_to(p.issuers);
-}
