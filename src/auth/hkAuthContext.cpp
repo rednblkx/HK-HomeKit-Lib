@@ -13,22 +13,19 @@
  * `nvs_handle`, which is a handle to a Non-Volatile Storage (NVS) namespace in ESP-IDF
  * (Espressif IoT Development Framework). This handle is used to access and manipulate data stored.
  */
-HKAuthenticationContext::HKAuthenticationContext(std::function<bool(uint8_t*, uint8_t, uint8_t*, uint16_t*, bool)> &nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc)
+HKAuthenticationContext::HKAuthenticationContext(std::function<bool(uint8_t*, uint8_t, uint8_t*, uint16_t*, bool)> &nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc), transactionIdentifier(16)
 {
   // esp_log_level_set(TAG, ESP_LOG_VERBOSE);
   auto startTime = std::chrono::high_resolution_clock::now();
   auto readerEphKey = generateEphemeralKey();
-  readerEphPrivKey = std::move(std::get<0>(readerEphKey));
-  readerEphPubKey = std::move(std::get<1>(readerEphKey));
-  transactionIdentifier.resize(16);
+  readerEphPrivKey.swap(std::get<0>(readerEphKey));
+  readerEphPubKey.swap(std::get<1>(readerEphKey));
   esp_fill_random(transactionIdentifier.data(), 16);
   readerIdentifier.reserve(readerData.reader_gid.size() + readerData.reader_id.size());
   readerIdentifier.insert(readerIdentifier.begin(), readerData.reader_gid.begin(), readerData.reader_gid.end());
   readerIdentifier.insert(readerIdentifier.end(), readerData.reader_id.begin(), readerData.reader_id.end());
-  readerEphX = std::move(get_x(readerEphPubKey));
+  readerEphX = get_x(readerEphPubKey);
   auto stopTime = std::chrono::high_resolution_clock::now();
-  endpointEphX = std::vector<uint8_t>();
-  endpointEphPubKey = std::vector<uint8_t>();
   LOG(I, "Initialization Time: %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(stopTime - startTime).count());
 }
 
@@ -79,11 +76,10 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       TLV_it crypt = Auth0Res.find(kAuth0_Cryptogram);
       std::vector<uint8_t> encryptedMessage{(*crypt).val.get(), (*crypt).val.get() + (*crypt).len};
       auto fastAuth = HKFastAuth(readerData.reader_pk_x, readerData.issuers, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier).attest(encryptedMessage);
-      if (std::get<1>(fastAuth) != nullptr && std::get<2>(fastAuth) != kFlowFailed)
+      if (std::get<1>(fastAuth) != nullptr && (flowUsed = std::get<2>(fastAuth)) == kFlowFAST)
       {
         foundIssuer = std::get<0>(fastAuth);
         foundEndpoint = std::get<1>(fastAuth);
-        flowUsed = std::get<2>(fastAuth);
         LOG(D, "Endpoint %s Authenticated via FAST Flow", hk_utils::bufToHexString(foundEndpoint->endpoint_id.data(), foundEndpoint->endpoint_id.size(), true).c_str());
       }
     }
@@ -92,15 +88,15 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       if(std::get<1>(stdAuth) != nullptr){
         foundIssuer = std::get<0>(stdAuth);
         foundEndpoint = std::get<1>(stdAuth);
-        if ((flowUsed = std::get<4>(stdAuth)) != kFlowFailed)
+        if ((flowUsed = std::get<4>(stdAuth)) == kFlowSTANDARD)
         {
           LOG(D, "Endpoint %s Authenticated via STANDARD Flow", hk_utils::bufToHexString(foundEndpoint->endpoint_id.data(), foundEndpoint->endpoint_id.size(), true).c_str());
           persistentKey = std::get<3>(stdAuth);
           foundEndpoint->endpoint_prst_k = persistentKey;
-          LOG(D, "New Persistent Key: %s", hk_utils::bufToHexString(foundEndpoint->endpoint_prst_k.data(), foundEndpoint->endpoint_prst_k.size()).c_str());
+          LOG(V, "New Persistent Key: %s", hk_utils::bufToHexString(foundEndpoint->endpoint_prst_k.data(), foundEndpoint->endpoint_prst_k.size()).c_str());
         }
       }
-      if (std::get<4>(stdAuth) == kFlowFailed || hkFlow == kFlowATTESTATION) {
+      if (std::get<4>(stdAuth) == kFlowNext || hkFlow == kFlowATTESTATION) {
         auto attestation = HKAttestationAuth(readerData.issuers, std::get<2>(stdAuth), nfc).attest();
         if ((flowUsed = std::get<2>(attestation)) == kFlowATTESTATION) {
           hkEndpoint_t endpoint;
@@ -115,7 +111,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
           LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", hk_utils::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size(), true).c_str());
           persistentKey = std::get<3>(stdAuth);
           endpoint.endpoint_prst_k = persistentKey;
-          LOG(D, "New Persistent Key: %s", hk_utils::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
+          LOG(V, "New Persistent Key: %s", hk_utils::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
           foundEndpoint = &(*foundIssuer->endpoints.emplace(foundIssuer->endpoints.end(),endpoint));
         }
       }

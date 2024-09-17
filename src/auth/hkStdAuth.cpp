@@ -176,14 +176,16 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, DigitalKeySecureContext, std::vector<ui
         }
         else if (device_identifier.size() > 0)
         {
-          return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowATTESTATION);
+          LOG(W, "Signature failed verification! Will attempt EXCHANGE flow(last resort)!");
+          return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowNext);
         }
       }
-      return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
+      LOG(W, "Endpoint data missing! Will attempt EXCHANGE flow(last resort)!");
+      return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowNext);
     }
     else
     {
-      LOG(W, "STANDARD Flow failed!");
+      LOG(E, "Invalid Response! STANDARD Flow failed!");
       return std::make_tuple(foundIssuer, foundEndpoint, context, persistentKey, kFlowFailed);
     }
   }
