@@ -1,8 +1,8 @@
 {
   "name": "HK-HomeKit-Lib",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
-  "keywords": "homekit, nfc",
+  "keywords": "homekit, nfc, homekey",
   "repository":
   {
     "type": "git",
@@ -15,5 +15,5 @@
   "homepage": "",
   "dependencies": {},
   "frameworks": ["espidf", "arduino"],
-  "platforms": ["espressif8266", "espressif32"]
+  "platforms": ["espressif32"]
 }
