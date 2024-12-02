@@ -4,12 +4,7 @@
 #ifndef X963KDF_H
 #define X963KDF_H
 
-#include <iostream>
-#include <stdexcept>
-#include <memory>
 #include <mbedtls/md.h>
-#include <mbedtls/cmac.h>
-#include <esp_log.h>
 
 class X963KDF {
 public:

@@ -6,10 +6,8 @@
 #define DIGITAL_KEY_SECURE_CONTEXT_H
 
 #include <tuple>
-#include <mbedtls/aes.h>
-#include <mbedtls/cmac.h>
-#include <mbedtls/platform_util.h>
-#include <hk-utils.h>
+#include <vector>
+#include <cstdint>
 
 class DigitalKeySecureContext {
 public:

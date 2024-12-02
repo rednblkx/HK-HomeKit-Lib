@@ -180,21 +180,42 @@ void TLV::unpack(uint8_t *buf, size_t bufSize){
         bufSize--;
         if(unpackBytes==0){
           add(unpackTag);
-          unpackPhase=0;          
+          unpackPhase = 0;
         } else {
-          unpackPhase=2;
+          if (berInput) {
+            if (unpackBytes == 0x81 && bufSize > 0) {
+              unpackBytes = *buf++;
+              bufSize--;
+            } else if (unpackBytes == 0x82 && bufSize >= 2 && buf != NULL) {
+              unpackBytes = (*buf++ << 8);
+              unpackBytes |= *buf++;
+              bufSize -= 2;
+            } else if (unpackBytes == 0x83 && bufSize >= 3) {
+              unpackBytes = (*buf++ << 16);
+              unpackBytes |= (*buf++ << 8);
+              unpackBytes |= *buf++;
+              bufSize -= 3;
+            } else if (unpackBytes == 0x84 && bufSize >= 4) {
+              unpackBytes = (*buf++ << 24);
+              unpackBytes |= (*buf++ << 16);
+              unpackBytes |= (*buf++ << 8);
+              unpackBytes |= *buf++;
+              bufSize -= 4;
+            }
+          }
+          unpackPhase = 2;
         }
         break;
 
       case 2:
-       size_t copyBytes=unpackBytes<bufSize ? unpackBytes : bufSize;
+       size_t copyBytes = unpackBytes < bufSize ? unpackBytes : bufSize;
        add(unpackTag,copyBytes,buf);
        buf+=copyBytes;
        unpackBytes-=copyBytes;
        bufSize-=copyBytes;
        if(unpackBytes==0)
         unpackPhase=0;
-      break;        
+      break;
     }
   }
 }

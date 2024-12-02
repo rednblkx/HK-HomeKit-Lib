@@ -1,14 +1,6 @@
-#include <tuple>
 #include "HomeKey.h"
-#include <hk-utils.h>
+#include <tuple>
 #include <nvs.h>
-#include <CommonCryptoUtils.h>
-#include <BerTlv.h>
-#include <esp_log.h>
-#include "TLV8.h"
-
-using namespace CommonCryptoUtils;
-using namespace hk_utils;
 
 class HK_HomeKit
 {
@@ -19,7 +11,11 @@ class HK_HomeKit
     nvs_handle& nvsHandle;
     const char* nvsKey = "READERDATA";
     bool save_to_nvs();
+    std::vector<uint8_t> getHashIdentifier(const std::vector<uint8_t>& key, bool sha256);
+    std::vector<uint8_t> get_x(std::vector<uint8_t> &pubKey);
+    std::vector<uint8_t> getPublicKey(uint8_t *privKey, size_t len);
     std::tuple<std::vector<uint8_t>, int> provision_device_cred(std::vector<uint8_t> buf);
+    static int esp_rng(void *, uint8_t *buf, size_t len);
     int set_reader_key(std::vector<uint8_t> buf);
   public:
     HK_HomeKit(readerData_t& readerData, nvs_handle& nvsHandle, const char* nvsKey, std::vector<uint8_t> &tlvData);

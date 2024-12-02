@@ -5,13 +5,7 @@
 #ifndef NDEF_H
 #define NDEF_H
 
-#include <tuple>
-#include <string.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <vector>
-#include <initializer_list>
-#include <hk-utils.h>
 
 class NDEFRecord
 {

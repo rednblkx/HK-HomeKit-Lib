@@ -5,16 +5,8 @@
 #ifndef ISO18013_SECURE_CONTEXT_H
 #define ISO18013_SECURE_CONTEXT_H
 
-#include <mbedtls/sha256.h>
-#include <mbedtls/hkdf.h>
-#include <mbedtls/aes.h>
-#include <mbedtls/gcm.h>
-#include <iomanip>
-#include <hk-utils.h>
-#include <cbor.h>
-#include <nlohmann/json.hpp>
-
-using json = nlohmann::json;
+#include <vector>
+#include <cstdint>
 
 class ISO18013SecureContext {
 public:

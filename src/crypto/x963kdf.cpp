@@ -3,6 +3,8 @@
  */
 
 #include "x963kdf.h"
+#include <mbedtls/cmac.h>
+#include <esp_log.h>
 
 X963KDF::~X963KDF(){
     mbedtls_md_free(&md_ctx);

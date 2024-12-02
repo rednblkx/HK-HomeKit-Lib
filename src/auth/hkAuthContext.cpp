@@ -1,10 +1,21 @@
 #include <hkAuthContext.h>
+#include "DigitalKeySecureContext.h"
+#include "CommonCryptoUtils.h"
+#include "hkFastAuth.h"
+#include "hkStdAuth.h"
+#include "hkAttestationAuth.h"
+#include "simple_tlv.h"
+#include "logging.h"
+#include <esp_random.h>
+#include <mbedtls/sha1.h>
+#include <chrono>
+#include <TLV8.h>
 
 /**
  * The HKAuthenticationContext constructor generates an ephemeral key for the reader and initializes
  * core variables
  *
- * @param nfcInDataExchange The `nfcInDataExchange` parameter is a function pointer that points to a
+ * @param nfc The `nfc` parameter is a function pointer that points to a
  * function responsible for exchanging data with an NFC device. It takes input data, its length, and
  * returns a response along with the response length.
  * @param readerData The `readerData` parameter is a reference to an object of type
@@ -17,16 +28,27 @@ HKAuthenticationContext::HKAuthenticationContext(std::function<bool(uint8_t*, ui
 {
   // esp_log_level_set(TAG, ESP_LOG_VERBOSE);
   auto startTime = std::chrono::high_resolution_clock::now();
-  auto readerEphKey = generateEphemeralKey();
+  auto readerEphKey = CommonCryptoUtils::generateEphemeralKey();
   readerEphPrivKey.swap(std::get<0>(readerEphKey));
   readerEphPubKey.swap(std::get<1>(readerEphKey));
   esp_fill_random(transactionIdentifier.data(), 16);
   readerIdentifier.reserve(readerData.reader_gid.size() + readerData.reader_id.size());
   readerIdentifier.insert(readerIdentifier.begin(), readerData.reader_gid.begin(), readerData.reader_gid.end());
   readerIdentifier.insert(readerIdentifier.end(), readerData.reader_id.begin(), readerData.reader_id.end());
-  readerEphX = get_x(readerEphPubKey);
+  readerEphX = CommonCryptoUtils::get_x(readerEphPubKey);
   auto stopTime = std::chrono::high_resolution_clock::now();
   LOG(I, "Initialization Time: %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(stopTime - startTime).count());
+}
+
+std::vector<uint8_t> HKAuthenticationContext::getHashIdentifier(const std::vector<uint8_t>& key) {
+  LOG(V, "Key: %s, Length: %d", red_log::bufToHexString(key.data(), key.size()).c_str(), key.size());
+  std::vector<unsigned char> hashable;
+  hashable.insert(hashable.end(), key.begin(), key.end());
+  LOG(V, "Hashable: %s", red_log::bufToHexString(&hashable.front(), hashable.size()).c_str());
+  std::vector<uint8_t> hash(32);
+  mbedtls_sha1(&hashable.front(), hashable.size(), hash.data());
+  LOG(V, "HashIdentifier: %s", red_log::bufToHexString(hash.data(), 32).c_str());
+  return hash;
 }
 
 /**
@@ -46,28 +68,28 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
 
   std::vector<uint8_t> fastTlv(sizeof(prot_v_data) + readerEphPubKey.size() + transactionIdentifier.size() + readerIdentifier.size() + 8);
   size_t len = 0;
-  hk_utils::simple_tlv(0x5C, prot_v_data, sizeof(prot_v_data), fastTlv.data(), &len);
+  simple_tlv(0x5C, prot_v_data, sizeof(prot_v_data), fastTlv.data(), &len);
 
-  hk_utils::simple_tlv(0x87, readerEphPubKey.data(), readerEphPubKey.size(), fastTlv.data() + len, &len);
+  simple_tlv(0x87, readerEphPubKey.data(), readerEphPubKey.size(), fastTlv.data() + len, &len);
 
-  hk_utils::simple_tlv(0x4C, transactionIdentifier.data(), transactionIdentifier.size(), fastTlv.data() + len, &len);
+  simple_tlv(0x4C, transactionIdentifier.data(), transactionIdentifier.size(), fastTlv.data() + len, &len);
 
-  hk_utils::simple_tlv(0x4D, readerIdentifier.data(), readerIdentifier.size(), fastTlv.data() + len, &len);
+  simple_tlv(0x4D, readerIdentifier.data(), readerIdentifier.size(), fastTlv.data() + len, &len);
   std::vector<uint8_t> apdu{0x80, 0x80, 0x01, 0x01, (uint8_t)len};
   apdu.insert(apdu.begin() + 5, fastTlv.begin(), fastTlv.end());
   std::vector<uint8_t> response(91);
   uint16_t responseLength = 91;
-  LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), hk_utils::bufToHexString(apdu.data(), apdu.size()).c_str());
+  LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), red_log::bufToHexString(apdu.data(), apdu.size()).c_str());
   nfc(apdu.data(), apdu.size(), response.data(), &responseLength, false);
   ESP_LOG_BUFFER_HEX_LEVEL(TAG, response.data(), responseLength, ESP_LOG_VERBOSE);
   response.resize(responseLength);
-  LOG(D, "Auth0 Response Length: %d, DATA: %s", responseLength, hk_utils::bufToHexString(response.data(), responseLength).c_str());
+  LOG(D, "Auth0 Response Length: %d, DATA: %s", responseLength, red_log::bufToHexString(response.data(), responseLength).c_str());
   if (responseLength > 64 && response[0] == 0x86) {
     TLV Auth0Res(NULL, 0);
     Auth0Res.unpack(response.data(), response.size());
     TLV_it pubkey = Auth0Res.find(kEndpoint_Public_Key);
     endpointEphPubKey = std::vector<uint8_t>{ (*pubkey).val.get(), (*pubkey).val.get() + (*pubkey).len };
-    endpointEphX = std::move(get_x(endpointEphPubKey));
+    endpointEphX = std::move(CommonCryptoUtils::get_x(endpointEphPubKey));
     hkIssuer_t *foundIssuer = nullptr;
     hkEndpoint_t *foundEndpoint = nullptr;
     std::vector<uint8_t> persistentKey;
@@ -80,7 +102,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       {
         foundIssuer = std::get<0>(fastAuth);
         foundEndpoint = std::get<1>(fastAuth);
-        LOG(D, "Endpoint %s Authenticated via FAST Flow", hk_utils::bufToHexString(foundEndpoint->endpoint_id.data(), foundEndpoint->endpoint_id.size(), true).c_str());
+        LOG(D, "Endpoint %s Authenticated via FAST Flow", red_log::bufToHexString(foundEndpoint->endpoint_id.data(), foundEndpoint->endpoint_id.size(), true).c_str());
       }
     }
     if(foundEndpoint == nullptr){
@@ -90,10 +112,10 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
         foundEndpoint = std::get<1>(stdAuth);
         if ((flowUsed = std::get<4>(stdAuth)) == kFlowSTANDARD)
         {
-          LOG(D, "Endpoint %s Authenticated via STANDARD Flow", hk_utils::bufToHexString(foundEndpoint->endpoint_id.data(), foundEndpoint->endpoint_id.size(), true).c_str());
+          LOG(D, "Endpoint %s Authenticated via STANDARD Flow", red_log::bufToHexString(foundEndpoint->endpoint_id.data(), foundEndpoint->endpoint_id.size(), true).c_str());
           persistentKey = std::get<3>(stdAuth);
           foundEndpoint->endpoint_prst_k = persistentKey;
-          LOG(V, "New Persistent Key: %s", hk_utils::bufToHexString(foundEndpoint->endpoint_prst_k.data(), foundEndpoint->endpoint_prst_k.size()).c_str());
+          LOG(V, "New Persistent Key: %s", red_log::bufToHexString(foundEndpoint->endpoint_prst_k.data(), foundEndpoint->endpoint_prst_k.size()).c_str());
         }
       }
       if (std::get<4>(stdAuth) == kFlowNext || hkFlow == kFlowATTESTATION) {
@@ -102,16 +124,16 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
           hkEndpoint_t endpoint;
           foundIssuer = std::get<0>(attestation);
           std::vector<uint8_t> devicePubKey = std::get<1>(attestation);
-          std::vector<uint8_t> deviceKeyX = get_x(std::get<1>(attestation));
+          std::vector<uint8_t> deviceKeyX = CommonCryptoUtils::get_x(std::get<1>(attestation));
           endpoint.endpoint_pk_x = deviceKeyX;
-          std::vector<uint8_t> eId = hk_utils::getHashIdentifier(devicePubKey.data(), devicePubKey.size(), false);
+          std::vector<uint8_t> eId = getHashIdentifier(devicePubKey);
           endpoint.endpoint_id = std::vector<uint8_t>{eId.begin(), eId.begin() + 6};
           endpoint.endpoint_pk = devicePubKey;
           LOG(I, "ATTESTATION Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
-          LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", hk_utils::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size(), true).c_str());
+          LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", red_log::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size(), true).c_str());
           persistentKey = std::get<3>(stdAuth);
           endpoint.endpoint_prst_k = persistentKey;
-          LOG(V, "New Persistent Key: %s", hk_utils::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
+          LOG(V, "New Persistent Key: %s", red_log::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
           foundEndpoint = &(*foundIssuer->endpoints.emplace(foundIssuer->endpoints.end(),endpoint));
         }
       }
@@ -128,18 +150,19 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       if (flowUsed < kFlowATTESTATION)
       {
         cmdFlowStatus = commandFlow(kCmdFlowSuccess);
-        LOG(D, "CONTROL FLOW RESPONSE: %s, Length: %d", hk_utils::bufToHexString(cmdFlowStatus.data(), cmdFlowStatus.size()).c_str(), cmdFlowStatus.size());
+        LOG(D, "CONTROL FLOW RESPONSE: %s, Length: %d", red_log::bufToHexString(cmdFlowStatus.data(), cmdFlowStatus.size()).c_str(), cmdFlowStatus.size());
       }
       if (flowUsed == kFlowATTESTATION || cmdFlowStatus.data()[0] == 0x90)
       {
         LOG(I, "Endpoint authenticated, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
         return std::make_tuple(foundIssuer->issuer_id, foundEndpoint->endpoint_id, flowUsed);
       } else {
-        LOG(E, "Control Flow Response not 0x90!, %s", hk_utils::bufToHexString(cmdFlowStatus.data(), cmdFlowStatus.size()).c_str());
+        LOG(E, "Control Flow Response not 0x90!, %s", red_log::bufToHexString(cmdFlowStatus.data(), cmdFlowStatus.size()).c_str());
         return std::make_tuple(foundIssuer->issuer_id, foundEndpoint->endpoint_id, kFlowFailed);
       }
-    }
+    } else commandFlow(kCmdFlowFailed);
   }
+  commandFlow(kCmdFlowFailed);
   LOG(E, "Response not valid, something went wrong!");
   return std::make_tuple(std::vector<uint8_t>(), std::vector<uint8_t>(), kFlowFailed);
 }
@@ -155,9 +178,9 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
 std::vector<uint8_t> HKAuthenticationContext::commandFlow(CommandFlowStatus status)
 {
   uint8_t apdu[4] = {0x80, 0x3c, status, status == kCmdFlowAttestation ? (uint8_t)0xa0 : (uint8_t)0x0};
-  std::vector<uint8_t> cmdFlowRes(4);
+  std::vector<uint8_t> cmdFlowRes(3);
   uint16_t cmdFlowResLen = cmdFlowRes.size();
-  LOG(D, "APDU: %s, Length: %d", hk_utils::bufToHexString(apdu, sizeof(apdu)).c_str(), sizeof(apdu));
+  LOG(D, "APDU: %s, Length: %d", red_log::bufToHexString(apdu, sizeof(apdu)).c_str(), sizeof(apdu));
   nfc(apdu, sizeof(apdu), cmdFlowRes.data(), &cmdFlowResLen, false);
   return cmdFlowRes;
 }

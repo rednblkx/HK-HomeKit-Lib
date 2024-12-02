@@ -62,18 +62,19 @@ class TLV : public std::forward_list<tlv_t> {
   uint8_t *endPackBuf;
   int currentPackPhase;
   size_t currentPackLen;
- 
+
   uint8_t unpackTag;
   size_t unpackBytes;
   int unpackPhase;
 
   const TLV_names *names=NULL;
-  int nNames=0;
-  
+  int nNames = 0;
+  bool berInput = false;
+
   public:
 
   TLV(){};
-  TLV(const TLV_names *names, int nNames) : names{names}, nNames{nNames} {};
+  TLV(const TLV_names *names, int nNames, bool berInput = false) : names{names}, nNames{nNames}, berInput{berInput} {};
 
   TLV_it add(uint8_t tag, size_t len, const uint8_t *val);
   TLV_it add(uint8_t tag, uint8_t val){return(add(tag, 1, &val));}

@@ -1,5 +1,11 @@
-#include <CommonCryptoUtils.h>
-
+#include "CommonCryptoUtils.h"
+#include <mbedtls/ecp.h>
+#include <mbedtls/md.h>
+#include <mbedtls/ecdh.h>
+#include <mbedtls/ecdsa.h>
+#include <mbedtls/error.h>
+#include <logging.h>
+#include <esp_random.h>
 namespace CommonCryptoUtils
 {
   const char* TAG = "CCUtils";
@@ -94,7 +100,7 @@ namespace CommonCryptoUtils
     size_t olen = 0;
     int ecp_write = mbedtls_ecp_point_write_binary(&ephemeral.private_grp, &ephemeral.private_Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, bufPub.data(), bufPub.capacity());
     if(!ecp_write){
-      LOG(D, "Ephemeral Key generated -- private: %s, public: %s", hk_utils::bufToHexString(bufPriv.data(), bufPriv.size()).c_str(), hk_utils::bufToHexString(bufPub.data(), bufPub.size()).c_str());
+      LOG(D, "Ephemeral Key generated -- private: %s, public: %s", red_log::bufToHexString(bufPriv.data(), bufPriv.size()).c_str(), red_log::bufToHexString(bufPub.data(), bufPub.size()).c_str());
     } else{
       LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
       return std::make_tuple(std::vector<uint8_t>(), std::vector<uint8_t>());
@@ -129,42 +135,7 @@ namespace CommonCryptoUtils
     int ecp_write = mbedtls_mpi_write_binary(&point.private_X, X.data(), buffer_size_x);
     if(ecp_write != 0)
       LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
-    LOG(V, "PublicKey: %s, X Coordinate: %s", hk_utils::bufToHexString(pubKey.data(), pubKey.size()).c_str(), hk_utils::bufToHexString(X.data(), X.size()).c_str());
-    mbedtls_ecp_group_free(&grp);
-    mbedtls_ecp_point_free(&point);
-    return X;
-  }
-
-  /**
-   * The function `get_x` takes a public key as input, converts it to a point on an elliptic curve,
-   * extracts the X coordinate of the point, and returns it as a vector of bytes.
-   * 
-   * @param pubKey The `pubKey` parameter is a pointer to an array of `uint8_t` (unsigned 8-bit integers)
-   * that represents the public key. It is assumed that the array contains `len` number of elements.
-   * @param len The parameter `len` represents the length of the `pubKey` array.
-   * 
-   * @return a std::vector<uint8_t> object named X.
-   */
-  std::vector<uint8_t> get_x(uint8_t *pubKey, size_t len)
-  {
-    mbedtls_ecp_group grp;
-    mbedtls_ecp_point point;
-    mbedtls_ecp_point_init(&point);
-    mbedtls_ecp_group_init(&grp);
-    mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
-    int ecp_read = mbedtls_ecp_point_read_binary(&grp, &point, pubKey, len);
-    if(ecp_read != 0){
-      LOG(E, "ecp_read - %s", mbedtls_high_level_strerr(ecp_read));
-      return std::vector<uint8_t>();
-    }
-    size_t buffer_size_x = mbedtls_mpi_size(&point.private_X);
-    std::vector<uint8_t> X(buffer_size_x);
-    int ecp_write = mbedtls_mpi_write_binary(&point.private_X, X.data(), buffer_size_x);
-    if(ecp_write != 0){
-      LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
-      return std::vector<uint8_t>();
-    }
-    LOG(V, "PublicKey: %s, X Coordinate: %s", hk_utils::bufToHexString(pubKey, len).c_str(), hk_utils::bufToHexString(X.data(), X.size()).c_str());
+    LOG(V, "PublicKey: %s, X Coordinate: %s", red_log::bufToHexString(pubKey.data(), pubKey.size()).c_str(), red_log::bufToHexString(X.data(), X.size()).c_str());
     mbedtls_ecp_group_free(&grp);
     mbedtls_ecp_point_free(&point);
     return X;
@@ -223,29 +194,5 @@ namespace CommonCryptoUtils
     mbedtls_mpi_free(&sigMpi1);
     mbedtls_mpi_free(&sigMpi2);
     return sigPoint;
-  }
-
-  std::vector<uint8_t> getPublicKey(uint8_t *privKey, size_t len)
-  {
-    mbedtls_ecp_keypair keypair;
-    mbedtls_ecp_keypair_init(&keypair);
-    int ecp_key = mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP256R1, &keypair, privKey, len);
-    int ret = mbedtls_ecp_mul(&keypair.private_grp, &keypair.private_Q, &keypair.private_d, &keypair.private_grp.G, esp_rng, NULL);
-    if(ecp_key != 0){
-      LOG(E, "ecp_write_1 - %s", mbedtls_high_level_strerr(ecp_key));
-      return std::vector<uint8_t>();
-    }
-    if (ret != 0) {
-      LOG(E, "mbedtls_ecp_mul - %s", mbedtls_high_level_strerr(ret));
-      return std::vector<uint8_t>();
-    }
-      size_t olenPub = 0;
-    std::vector<uint8_t> readerPublicKey(MBEDTLS_ECP_MAX_BYTES);
-    mbedtls_ecp_point_write_binary(&keypair.private_grp, &keypair.private_Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olenPub, readerPublicKey.data(), readerPublicKey.capacity());
-    readerPublicKey.resize(olenPub);
-
-    // Cleanup
-    mbedtls_ecp_keypair_free(&keypair);
-    return readerPublicKey;
   }
 }

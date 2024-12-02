@@ -1,14 +1,7 @@
 #pragma once
+#include <cstdint>
 #include <vector>
 #include <tuple>
-#include <mbedtls/ecp.h>
-#include <mbedtls/md.h>
-#include <mbedtls/ecdh.h>
-#include <mbedtls/ecdsa.h>
-#include <mbedtls/error.h>
-#include <esp_log.h>
-#include <hk-utils.h>
-#include <esp_random.h>
 
 namespace CommonCryptoUtils
 {
@@ -16,7 +9,5 @@ namespace CommonCryptoUtils
   std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> generateEphemeralKey();
   std::vector<uint8_t> signSharedInfo(const uint8_t *data, const size_t len, const uint8_t *privateKey, const size_t keyLen);
   std::vector<uint8_t> get_x(std::vector<uint8_t> &pubKey);
-  std::vector<uint8_t> get_x(uint8_t *pubKey, size_t len);
-  std::vector<uint8_t> getPublicKey(uint8_t *privKey, size_t len);
   int esp_rng(void *, uint8_t *buf, size_t len);
 }

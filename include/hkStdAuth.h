@@ -1,17 +1,7 @@
 #pragma once
-#include <CommonCryptoUtils.h>
-#include <tuple>
 #include "HomeKey.h"
-#include <mbedtls/hkdf.h>
-#include <DigitalKeySecureContext.h>
-#include <x963kdf.h>
-#include <hk-utils.h>
-#include <list>
-#include <TLV8.h>
-#include <functional>
-
-using namespace CommonCryptoUtils;
-using namespace hk_utils;
+#include "DigitalKeySecureContext.h"
+#include <vector>
 
 class HKStdAuth
 {
@@ -26,7 +16,8 @@ private:
   std::vector<uint8_t> &transactionIdentifier;
   std::vector<uint8_t> &readerIdentifier;
   std::function<bool(uint8_t*, uint8_t, uint8_t*, uint16_t*, bool)>& nfc;
-  void Auth1_keys_generator(uint8_t *persistentKey, uint8_t *volatileKey);
+  void pack(const uint8_t* buf, size_t buflen, uint8_t* out, size_t* olen);
+  void Auth1_keys_generator(uint8_t* persistentKey, uint8_t* volatileKey);
   void Auth1_keying_material(uint8_t *keyingMaterial, const char *context, uint8_t *out, size_t outLen);
 
 public:

@@ -3,17 +3,25 @@
  */
 
 #include <ISO18013SecureContext.h>
+#include <mbedtls/hkdf.h>
+#include <mbedtls/gcm.h>
+#include <mbedtls/error.h>
+#include <logging.h>
+#include <cbor.h>
+#include <nlohmann/json.hpp>
 
-const std::vector<uint8_t> READER_CONTEXT = {'S', 'K', 'R', 'e', 'a', 'd', 'e', 'r'};
-const std::vector<uint8_t> ENDPOINT_CONTEXT = {'S', 'K', 'D', 'e', 'v', 'i', 'c', 'e'};
+using json = nlohmann::json;
 
-const std::vector<uint8_t> READER_MODE = {0x00, 0x00, 0x00, 0x00};
-const std::vector<uint8_t> ENDPOINT_MODE = {0x00, 0x00, 0x00, 0x01};
+const std::array<uint8_t, 8> READER_CONTEXT = {'S', 'K', 'R', 'e', 'a', 'd', 'e', 'r'};
+const std::array<uint8_t, 8> ENDPOINT_CONTEXT = {'S', 'K', 'D', 'e', 'v', 'i', 'c', 'e'};
+
+const std::array<uint8_t, 4> READER_MODE = {0x00, 0x00, 0x00, 0x00};
+const std::array<uint8_t, 4> ENDPOINT_MODE = {0x00, 0x00, 0x00, 0x01};
 
 ISO18013SecureContext::ISO18013SecureContext(const std::vector<uint8_t> &sharedSecret, const std::vector<uint8_t> &salt, size_t keyLength)
 {
-    LOG(V, "Shared Secret: %s", hk_utils::bufToHexString(sharedSecret.data(), sharedSecret.size()).c_str());
-    LOG(V, "Salt: %s", hk_utils::bufToHexString(salt.data(), salt.size()).c_str());
+    LOG(V, "Shared Secret: %s", red_log::bufToHexString(sharedSecret.data(), sharedSecret.size()).c_str());
+    LOG(V, "Salt: %s", red_log::bufToHexString(salt.data(), salt.size()).c_str());
     LOG(V, "Key Length: %d", keyLength);
     this->readerCounter = 1;
     this->endpointCounter = 1;
@@ -27,8 +35,8 @@ ISO18013SecureContext::ISO18013SecureContext(const std::vector<uint8_t> &sharedS
                             ENDPOINT_CONTEXT.data(), ENDPOINT_CONTEXT.size(),
                             outEndpoint, keyLength);
 
-    LOG(V, "READER Key: %s", hk_utils::bufToHexString(outReader, keyLength).c_str());
-    LOG(V, "ENDPOINT Key: %s", hk_utils::bufToHexString(outEndpoint, keyLength).c_str());
+    LOG(V, "READER Key: %s", red_log::bufToHexString(outReader, keyLength).c_str());
+    LOG(V, "ENDPOINT Key: %s", red_log::bufToHexString(outEndpoint, keyLength).c_str());
     if(!ret1){
         this->readerKey.insert(this->readerKey.begin(), outReader, outReader + keyLength);
     } else {
@@ -91,7 +99,7 @@ std::vector<uint8_t> ISO18013SecureContext::encryptMessageToEndpoint(const std::
         return std::vector<unsigned char>();
     }
 
-    LOG(D, "CIPHERTEXT LEN: %d DATA: %s", sizeof(ciphertext), hk_utils::bufToHexString(ciphertext, sizeof(ciphertext)).c_str());
+    LOG(D, "CIPHERTEXT LEN: %d DATA: %s", sizeof(ciphertext), red_log::bufToHexString(ciphertext, sizeof(ciphertext)).c_str());
     CborEncoder cipher;
     uint8_t cipherBuf[sizeof(ciphertext) + 16];
     cbor_encoder_init(&cipher, cipherBuf, sizeof(ciphertext) + 16, 0);
@@ -102,7 +110,7 @@ std::vector<uint8_t> ISO18013SecureContext::encryptMessageToEndpoint(const std::
     cbor_encoder_close_container(&cipher, &cipherMap);
     readerCounter++;
 
-    LOG(D, "CBOR LEN: %d DATA: %s", sizeof(cipherBuf), hk_utils::bufToHexString(cipherBuf, sizeof(cipherBuf)).c_str());
+    LOG(D, "CBOR LEN: %d DATA: %s", sizeof(cipherBuf), red_log::bufToHexString(cipherBuf, sizeof(cipherBuf)).c_str());
 
     return std::vector<uint8_t>{cipherBuf, cipherBuf + sizeof(cipherBuf)};
 }
@@ -155,7 +163,7 @@ std::vector<uint8_t> ISO18013SecureContext::decryptMessageFromEndpoint(const std
 
     endpointCounter++;
 
-    LOG(D, "PLAINTEXT LEN: %d DATA: %s", plaintext.size(), hk_utils::bufToHexString(plaintext.data(), plaintext.size()).c_str());
+    LOG(D, "PLAINTEXT LEN: %d DATA: %s", plaintext.size(), red_log::bufToHexString(plaintext.data(), plaintext.size()).c_str());
 
     return plaintext;
 }
