@@ -24,7 +24,7 @@
  * `nvs_handle`, which is a handle to a Non-Volatile Storage (NVS) namespace in ESP-IDF
  * (Espressif IoT Development Framework). This handle is used to access and manipulate data stored.
  */
-HKAuthenticationContext::HKAuthenticationContext(std::function<bool(uint8_t*, uint8_t, uint8_t*, uint16_t*, bool)> &nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc), transactionIdentifier(16)
+HKAuthenticationContext::HKAuthenticationContext(const std::function<bool(uint8_t*, uint8_t, uint8_t*, uint16_t*, bool)> &nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc), transactionIdentifier(16)
 {
   // esp_log_level_set(TAG, ESP_LOG_VERBOSE);
   auto startTime = std::chrono::high_resolution_clock::now();
