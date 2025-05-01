@@ -8,6 +8,7 @@
 #include <mbedtls/bignum.h>
 #include <TLV8.h>
 #include <mbedtls/ecdsa.h>
+#include <vector>
 /**
  * The function `Auth1_keys_generator` generates persistent and volatile keys using a shared key and
  * X963KDF algorithm.
@@ -102,20 +103,19 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, DigitalKeySecureContext, std::vector<ui
   std::vector<uint8_t> apdu{0x80, 0x81, 0x0, 0x0, (uint8_t)sigTlv.size()};
   apdu.resize(apdu.size() + sigTlv.size());
   std::move(sigTlv.begin(), sigTlv.end(), apdu.begin() + 5);
-  uint8_t response[128];
-  uint16_t responseLength = 128;
+  std::vector<uint8_t> response;
   LOG(D, "Auth1 APDU Length: %d, DATA: %s", apdu.size(), red_log::bufToHexString(apdu.data(), apdu.size()).c_str());
-  nfc(apdu.data(), apdu.size(), response, &responseLength, false);
-  LOG(D, "Auth1 Response Length: %d, DATA: %s", responseLength, red_log::bufToHexString(response, responseLength).c_str());
+  nfc(apdu, response, false);
+  LOG(D, "Auth1 Response Length: %d, DATA: %s", response.size(), red_log::bufToHexString(response.data(), response.size()).c_str());
   std::vector<uint8_t> persistentKey(32);
   uint8_t volatileKey[48];
   Auth1_keys_generator(persistentKey.data(), volatileKey);
   DigitalKeySecureContext context = DigitalKeySecureContext(volatileKey);
   hkEndpoint_t *foundEndpoint = nullptr;
   hkIssuer_t *foundIssuer = nullptr;
-  if (responseLength > 2 && response[responseLength - 2] == 0x90)
+  if (response.size() > 2 && response[response.size() - 2] == 0x90)
   {
-    auto response_result = context.decrypt_response(response, responseLength - 2);
+    auto response_result = context.decrypt_response(response.data(), response.size() - 2);
     LOG(D, "Decrypted Length: %d, Data: %s", response_result.size(), red_log::bufToHexString(response_result.data(), response_result.size()).c_str());
     if (response_result.size() > 0)
     {

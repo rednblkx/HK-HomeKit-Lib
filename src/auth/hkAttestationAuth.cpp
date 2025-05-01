@@ -4,11 +4,14 @@
 #include "TLV8.h"
 #include "ISO18013SecureContext.h"
 #include "logging.h"
+#include <cstdint>
 #include <esp_random.h>
+#include <memory>
 #include <sodium/crypto_sign_ed25519.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/error.h>
 #include <cbor.h>
+#include <vector>
 
 std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsigned char> &env1Data, std::vector<unsigned char> &readerCmd)
 {
@@ -63,18 +66,16 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
 
 std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelope1Cmd()
 {
-  uint8_t ctrlFlow[4] = {0x80, 0x3c, 0x40, 0xa0};
-  uint8_t ctrlFlowRes[8];
-  uint16_t ctrlFlowResLen = 8;
-  nfc(ctrlFlow, sizeof(ctrlFlow), ctrlFlowRes, &ctrlFlowResLen, false);
-  LOG(D, "CTRL FLOW RES LENGTH: %d, DATA: %s", ctrlFlowResLen, red_log::bufToHexString(ctrlFlowRes, ctrlFlowResLen).c_str());
+  std::vector<uint8_t> ctrlFlow = {0x80, 0x3c, 0x40, 0xa0};
+  std::vector<uint8_t> ctrlFlowRes;
+  nfc(ctrlFlow, ctrlFlowRes, false);
+  LOG(D, "CTRL FLOW RES LENGTH: %d, DATA: %s", ctrlFlowRes.size(), red_log::bufToHexString(ctrlFlowRes.data(), ctrlFlowRes.size()).c_str());
   if (ctrlFlowRes[0] == 0x90 && ctrlFlowRes[1] == 0x0)
   { // cla=0x00; ins=0xa4; p1=0x04; p2=0x00; lc=0x07(7); data=a0000008580102; le=0x00
-    uint8_t data[] = {0x00, 0xA4, 0x04, 0x00, 0x07, 0xA0, 0x00, 0x00, 0x08, 0x58, 0x01, 0x02, 0x0};
-    uint8_t response[4];
-    uint16_t responseLength = 4;
-    nfc(data, sizeof(data), response, &responseLength, false);
-    LOG(D, "ENV1.2 RES LENGTH: %d, DATA: %s", responseLength, red_log::bufToHexString(response, responseLength).c_str());
+    std::vector<uint8_t> data = {0x00, 0xA4, 0x04, 0x00, 0x07, 0xA0, 0x00, 0x00, 0x08, 0x58, 0x01, 0x02, 0x0};
+    std::vector<uint8_t> response;
+    nfc(data, response, false);
+    LOG(D, "ENV1.2 RES LENGTH: %d, DATA: %s", response.size(), red_log::bufToHexString(response.data(), response.size()).c_str());
     if (response[0] == 0x90 && response[1] == 0x0){
       unsigned char payload[] = {0x15, 0x91, 0x02, 0x02, 0x63, 0x72, 0x01, 0x02, 0x51, 0x02, 0x11, 0x61, 0x63, 0x01, 0x03, 0x6e, 0x66, 0x63, 0x01, 0x0a, 0x6d, 0x64, 0x6f, 0x63, 0x72, 0x65, 0x61, 0x64, 0x65, 0x72};
       unsigned char payload1[] = {0x01};
@@ -85,15 +86,16 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelo
                             .pack();
       LOG(D, "NDEF CMD LENGTH: %d, DATA: %s", ndefMessage.size(), red_log::bufToHexString(ndefMessage.data(), ndefMessage.size()).c_str());
       auto envelope1Tlv = simple_tlv(0x53, ndefMessage.data(), ndefMessage.size(), NULL, NULL);
-      uint8_t env1Apdu[envelope1Tlv.size() + 6] = {0x00, 0xc3, 0x00, 0x01, static_cast<uint8_t>(envelope1Tlv.size())};
-      memcpy(env1Apdu + 5, envelope1Tlv.data(), envelope1Tlv.size());
-      LOG(D, "APDU CMD LENGTH: %d, DATA: %s", sizeof(env1Apdu), red_log::bufToHexString(env1Apdu, sizeof(env1Apdu)).c_str());
-      uint8_t env1Res[128];
-      uint16_t env1ResLen = 128;
-      nfc(env1Apdu, sizeof(env1Apdu), env1Res, &env1ResLen, false);
-      LOG(D, "APDU RES LENGTH: %d, DATA: %s", env1ResLen, red_log::bufToHexString(env1Res, env1ResLen).c_str());
-      if (env1Res[env1ResLen - 2] == 0x90 && env1Res[env1ResLen - 1] == 0x0){
-        return std::make_tuple(std::vector<unsigned char>{env1Res, env1Res + env1ResLen}, ndefMessage);
+      std::vector<uint8_t> env1Apdu = {0x00, 0xc3, 0x00, 0x01, static_cast<uint8_t>(envelope1Tlv.size())};
+      env1Apdu.reserve(envelope1Tlv.size() + 6);
+      env1Apdu.insert(env1Apdu.end(), envelope1Tlv.begin(), envelope1Tlv.end());
+      env1Apdu.push_back(0x0);
+      LOG(D, "APDU CMD LENGTH: %d, DATA: %s", env1Apdu.size(), red_log::bufToHexString(env1Apdu.data(), env1Apdu.size()).c_str());
+      std::vector<uint8_t> env1Res;
+      nfc(env1Apdu, env1Res, false);
+      LOG(D, "APDU RES LENGTH: %d, DATA: %s", env1Res.size(), red_log::bufToHexString(env1Res.data(), env1Res.size()).c_str());
+      if (env1Res[env1Res.size() - 2] == 0x90 && env1Res[env1Res.size() - 1] == 0x0){
+        return std::make_tuple(env1Res, ndefMessage);
       }
     }
   }
@@ -153,31 +155,41 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
 
     auto tlv = simple_tlv(0x53, encrypted.data(), encrypted.size());
 
-    unsigned char apdu[6 + tlv.size()] = {0x0, 0xC3, 0x0, 0x0, (unsigned char)tlv.size()};
+    std::vector<uint8_t> apdu = {0x0, 0xC3, 0x0, 0x0, (unsigned char)tlv.size()};
 
-    memcpy(apdu + 5, tlv.data(), tlv.size());
-    LOG(D, "ENV2 APDU - LENGTH: %d, DATA: %s\n", sizeof(apdu), red_log::bufToHexString(apdu, sizeof(apdu)).c_str());
-    uint16_t newLen = 256;
-    uint8_t *env2Res = new unsigned char[256];
+    apdu.insert(apdu.end(), tlv.begin(), tlv.end());
+    LOG(D, "ENV2 APDU - LENGTH: %d, DATA: %s\n", apdu.size(), red_log::bufToHexString(apdu.data(), apdu.size()).c_str());
+    uint16_t totalLen = 0;
+    std::vector<uint8_t> env2Res;
     std::vector<unsigned char> attestation_package;
-    uint8_t getData[5] = {0x0, 0xc0, 0x0, 0x0, 0x0};
-    LOG(D, "ENV2 APDU Len: %d, Data: %s\n", sizeof(apdu), red_log::bufToHexString(apdu, sizeof(apdu)).c_str());
-    nfc(apdu, sizeof(apdu), env2Res, &newLen, false);
-    attestation_package.insert(attestation_package.begin(), env2Res, env2Res + newLen - 2);
-    LOG(D, "env2Res Len: %d, Data: %s\n", newLen, red_log::bufToHexString(env2Res, newLen).c_str());
-    while (env2Res[newLen - 2] == 0x61)
+    std::vector<uint8_t> dataStatus;
+    std::vector<uint8_t> getData = {0x0, 0xc0, 0x0, 0x0, 0x0};
+    LOG(D, "ENV2 APDU Len: %d, Data: %s\n", apdu.size(), red_log::bufToHexString(apdu.data(), apdu.size()).c_str());
+    nfc(apdu, dataStatus, false);
+    LOG(D, "APDU RES Len: %d, Data: %s\n", dataStatus.size(), red_log::bufToHexString(attestation_package.data(), dataStatus.size()).c_str());
+    bool getMore = false;
+    do
     {
-      newLen = 256;
-      nfc(getData, sizeof(getData), env2Res, &newLen, false);
-      attestation_package.insert(attestation_package.end(), env2Res, env2Res + newLen - (newLen > 250 ? 2 : 0));
-      LOG(D, "env2Res Len: %d, Data: %s\n", newLen, red_log::bufToHexString(env2Res, newLen).c_str());
-    }
-    delete[] env2Res;
+      getMore = false;
+      nfc(getData, env2Res, false);
+      attestation_package.insert(attestation_package.end(), env2Res.begin(), env2Res.end());
+      LOG(D, "Total Length: %d NEW LENGTH: %d vector length: %d free heap size: %lu", totalLen, env2Res.size(), attestation_package.size(), esp_get_free_heap_size());
+      if(env2Res.size() >= 253){
+        env2Res.clear();
+        nfc(getData, env2Res, false);
+        if (env2Res.size() == 2 && env2Res[0] == 0x61) {
+          getMore = true;
+        } else if (env2Res.size() > 200) {
+          attestation_package.insert(attestation_package.end(), env2Res.begin(),
+                                     env2Res.end());
+        }
+      }
+    } while (getMore);
     LOG(V, "ATT PKG LENGTH: %d - DATA: %s", attestation_package.size(), red_log::bufToHexString(attestation_package.data(), attestation_package.size()).c_str());
     TLV data(NULL, 0, true);
     data.unpack(attestation_package.data(), attestation_package.size());
     TLV_it tlvStatus = data.find(0x90);
-    if ((*tlvStatus).tag == 0x90) {
+    if (tlvStatus != data.end()) {
       TLV_it tlvEncMsg = data.find(0x53);
       std::vector<uint8_t> encryptedMessage((*tlvEncMsg).val.get(), (*tlvEncMsg).val.get() + (*tlvEncMsg).len);
       auto decrypted_message = secureCtx.decryptMessageFromEndpoint(encryptedMessage);
@@ -288,14 +300,14 @@ std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attes
 
   LOG(V, "encrypted_command: %s", red_log::bufToHexString(std::get<0>(encryptedCmd).data(), std::get<0>(encryptedCmd).size()).c_str());
   LOG(V, "calculated_rmac: %s", red_log::bufToHexString(std::get<1>(encryptedCmd).data(), std::get<1>(encryptedCmd).size()).c_str());
-  uint8_t xchApdu[std::get<0>(encryptedCmd).size() + 6] = {0x84, 0xc9, 0x0, 0x0, (uint8_t)std::get<0>(encryptedCmd).size()};
-  memcpy(xchApdu + 5, std::get<0>(encryptedCmd).data(), std::get<0>(encryptedCmd).size());
-  LOG(V, "APDU CMD LENGTH: %d, DATA: %s", sizeof(xchApdu), red_log::bufToHexString(xchApdu, sizeof(xchApdu)).c_str());
-  uint8_t xchRes[16];
-  uint16_t xchResLen = 16;
-  nfc(xchApdu, sizeof(xchApdu), xchRes, &xchResLen, false);
-  LOG(D, "APDU RES LENGTH: %d, DATA: %s", xchResLen, red_log::bufToHexString(xchRes, xchResLen).c_str());
-  if (xchResLen > 2 && xchRes[xchResLen - 2] == 0x90)
+  std::vector<uint8_t> xchApdu = {0x84, 0xc9, 0x0, 0x0, (uint8_t)std::get<0>(encryptedCmd).size()};
+  xchApdu.reserve(std::get<0>(encryptedCmd).size() + 5);
+  xchApdu.insert(xchApdu.end(), std::get<0>(encryptedCmd).begin(), std::get<0>(encryptedCmd).end());
+  LOG(V, "APDU CMD LENGTH: %d, DATA: %s", xchApdu.size(), red_log::bufToHexString(xchApdu.data(), xchApdu.size()).c_str());
+  std::vector<uint8_t> xchRes;
+  nfc(xchApdu, xchRes, false);
+  LOG(D, "APDU RES LENGTH: %d, DATA: %s", xchRes.size(), red_log::bufToHexString(xchRes.data(), xchRes.size()).c_str());
+  if (xchRes.size() > 2 && xchRes[xchRes.size() - 2] == 0x90)
   {
     auto env1Data = envelope1Cmd();
     std::vector<uint8_t> env1Res = std::get<0>(env1Data);

@@ -24,7 +24,7 @@
  * `nvs_handle`, which is a handle to a Non-Volatile Storage (NVS) namespace in ESP-IDF
  * (Espressif IoT Development Framework). This handle is used to access and manipulate data stored.
  */
-HKAuthenticationContext::HKAuthenticationContext(const std::function<bool(uint8_t*, uint8_t, uint8_t*, uint16_t*, bool)> &nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc), transactionIdentifier(16)
+HKAuthenticationContext::HKAuthenticationContext(const std::function<bool(std::vector<uint8_t>&, std::vector<uint8_t>&, bool)> &nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc), transactionIdentifier(16)
 {
   // esp_log_level_set(TAG, ESP_LOG_VERBOSE);
   auto startTime = std::chrono::high_resolution_clock::now();
@@ -77,19 +77,17 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
   simple_tlv(0x4D, readerIdentifier.data(), readerIdentifier.size(), fastTlv.data() + len, &len);
   std::vector<uint8_t> apdu{0x80, 0x80, 0x01, 0x01, (uint8_t)len};
   apdu.insert(apdu.begin() + 5, fastTlv.begin(), fastTlv.end());
-  std::vector<uint8_t> response(91);
-  uint16_t responseLength = 91;
+  std::vector<uint8_t> response;
   LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), red_log::bufToHexString(apdu.data(), apdu.size()).c_str());
-  nfc(apdu.data(), apdu.size(), response.data(), &responseLength, false);
-  ESP_LOG_BUFFER_HEX_LEVEL(TAG, response.data(), responseLength, ESP_LOG_VERBOSE);
-  response.resize(responseLength);
-  LOG(D, "Auth0 Response Length: %d, DATA: %s", responseLength, red_log::bufToHexString(response.data(), responseLength).c_str());
-  if (responseLength > 64 && response[0] == 0x86) {
+  nfc(apdu, response, false);
+  ESP_LOG_BUFFER_HEX_LEVEL(TAG, response.data(), response.size(), ESP_LOG_VERBOSE);
+  LOG(D, "Auth0 Response Length: %d, DATA: %s", response.size(), red_log::bufToHexString(response.data(), response.size()).c_str());
+  if (response.size() > 64 && response[0] == 0x86) {
     TLV Auth0Res(NULL, 0);
     Auth0Res.unpack(response.data(), response.size());
     TLV_it pubkey = Auth0Res.find(kEndpoint_Public_Key);
     endpointEphPubKey = std::vector<uint8_t>{ (*pubkey).val.get(), (*pubkey).val.get() + (*pubkey).len };
-    endpointEphX = std::move(CommonCryptoUtils::get_x(endpointEphPubKey));
+    endpointEphX = CommonCryptoUtils::get_x(endpointEphPubKey);
     hkIssuer_t *foundIssuer = nullptr;
     hkEndpoint_t *foundEndpoint = nullptr;
     std::vector<uint8_t> persistentKey;
@@ -177,10 +175,9 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
  */
 std::vector<uint8_t> HKAuthenticationContext::commandFlow(CommandFlowStatus status)
 {
-  uint8_t apdu[4] = {0x80, 0x3c, status, status == kCmdFlowAttestation ? (uint8_t)0xa0 : (uint8_t)0x0};
+  std::vector<uint8_t> apdu = {0x80, 0x3c, static_cast<uint8_t>(status), status == kCmdFlowAttestation ? (uint8_t)0xa0 : (uint8_t)0x0};
   std::vector<uint8_t> cmdFlowRes(3);
-  uint16_t cmdFlowResLen = cmdFlowRes.size();
-  LOG(D, "APDU: %s, Length: %d", red_log::bufToHexString(apdu, sizeof(apdu)).c_str(), sizeof(apdu));
-  nfc(apdu, sizeof(apdu), cmdFlowRes.data(), &cmdFlowResLen, false);
+  LOG(D, "APDU: %s, Length: %d", red_log::bufToHexString(apdu.data(), apdu.size()).c_str(), apdu.size());
+  nfc(apdu, cmdFlowRes, false);
   return cmdFlowRes;
 }
