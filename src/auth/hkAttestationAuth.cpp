@@ -161,19 +161,14 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
 
     std::vector<uint8_t> apdu = {0x0, 0xC3, 0x0, 0x0, (unsigned char)tlv.size()};
 
-    // memcpy(apdu.data() + 5, tlv.data(), tlv.size());
     apdu.insert(apdu.end(), tlv.begin(), tlv.end());
     LOG(D, "ENV2 APDU - LENGTH: %d, DATA: %s\n", apdu.size(), red_log::bufToHexString(apdu.data(), apdu.size()).c_str());
-    // uint16_t totalLen = 0;
-    // uint16_t newLen = 0;
     std::vector<uint8_t> env2Res;
-    std::vector<unsigned char> attestation_package;
+    std::vector<uint8_t> attestation_package;
     std::vector<uint8_t> dataStatus;
     std::vector<uint8_t> getData = {0x0, 0xc0, 0x0, 0x0, 0x0};
     LOG(D, "ENV2 APDU Len: %d, Data: %s\n", apdu.size(), red_log::bufToHexString(apdu.data(), apdu.size()).c_str());
     nfc(apdu, dataStatus, false);
-    // attestation_package.insert(attestation_package.begin(), env2Res, env2Res + newLen - 2);
-    // LOG(D, "APDU RES Len: {}, Data: {}\n", dataStatus.size(), red_log::bufToHexString(attestation_package.data(), dataStatus.size()).c_str());
     bool getMore = false;
     do
     {
@@ -181,20 +176,23 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
       nfc(getData, env2Res, false);
       attestation_package.insert(attestation_package.end(), env2Res.begin(), env2Res.end());
       LOG(D, "Data Length: %d - pkg length: %d - free heap size: %lu", env2Res.size(), attestation_package.size(), esp_get_free_heap_size());
-      if(env2Res.size() >= 253){
-        env2Res.clear();
+      if(env2Res.size() >= 250 && (*(&env2Res.back() - 1) == 0x61 && (env2Res.back() == 0x0 || env2Res.back() >= 0xd0))){
+        getMore = true;
+        attestation_package.pop_back();
+        attestation_package.pop_back();
+      } else if (env2Res.size() >= 250) {
         nfc(getData, env2Res, false);
         if (env2Res.size() == 2 && env2Res[0] == 0x61) {
           getMore = true;
         } else if (env2Res.size() > 200) {
           attestation_package.insert(attestation_package.end(), env2Res.begin(),
-                                     env2Res.end());
+          env2Res.end());
         }
       }
+      env2Res.clear();
     } while (getMore);
-    // delete[] env2Res;
-    LOG(V, "ATT PKG LENGTH: %d - DATA: %s", attestation_package.size(), red_log::bufToHexString(attestation_package.data(), attestation_package.size()).c_str());
-    TLV8 data;
+    LOG(D, "ATT PKG LENGTH: %d - DATA: %s", attestation_package.size(), red_log::bufToHexString(attestation_package.data(), attestation_package.size()).c_str());
+    TLV8 data(true);
     data.parse(attestation_package.data(), attestation_package.size());
     tlv_it tlvStatus = data.find(0x90);
     if (tlvStatus != data.end()) {
