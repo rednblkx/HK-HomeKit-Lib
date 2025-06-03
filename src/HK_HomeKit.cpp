@@ -40,14 +40,14 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
       }
   }
   if (*operation->data() == kReader_Operation_Write) {
-    if (RKR->length() > 0) {
-      LOG(I,"TLV RKR: %d", *RKR->data());
+    if (RKR != rxTlv.end()) {
+      LOG(I,"TLV RKR: %d", RKR->length());
       LOG(I,"SET READER KEY REQUEST");
       int ret = set_reader_key(RKR->value);
       if (ret == 0) {
         LOG(I,"READER KEY SAVED TO NVS, COMPOSING RESPONSE");
         TLV8 rkResSub;
-        rkResSub.add(kReader_Res_Status, 1, {});
+        rkResSub.add(kReader_Res_Status, 0);
         std::vector<uint8_t> rkSubTlv = rkResSub.get();
         LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", sizeof(rkSubTlv), red_log::bufToHexString(rkSubTlv.data(), rkSubTlv.size()).c_str());
         TLV8 rkResTlv;
@@ -56,8 +56,8 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
         return rkRes;
       }
     }
-    else if (DCR->length() > 0) {
-      LOG(I,"TLV DCR: %d",*DCR->data());
+    else if (DCR != rxTlv.end()) {
+      LOG(I,"TLV DCR: %d",DCR->length());
       LOG(D,"PROVISION DEVICE CREDENTIAL REQUEST");
       auto state = provision_device_cred(DCR->value);
       if (std::get<1>(state) != 99 && std::get<0>(state).size() > 0) {
@@ -75,7 +75,7 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
     }
   }
   if (*operation->data() == kReader_Operation_Remove)
-    if (RKR->length() > 0) {
+    if (RKR != rxTlv.end()) {
       LOG(I,"REMOVE READER KEY REQUEST");
       readerData.reader_gid.clear();
       readerData.reader_id.clear();
@@ -215,13 +215,15 @@ std::tuple<std::vector<uint8_t>, int> HK_HomeKit::provision_device_cred(std::vec
   return std::make_tuple(readerData.reader_gid, DOES_NOT_EXIST);
 }
 
-int HK_HomeKit::set_reader_key(std::vector<uint8_t> buf) {
-  LOG(D, "Setting reader key: %s", red_log::bufToHexString(buf.data(), buf.size()).c_str());
+int HK_HomeKit::set_reader_key(std::vector<uint8_t>& buf) {
+  LOG(D, "Setting reader key(%d): %s", buf.size(), red_log::bufToHexString(buf.data(), buf.size()).c_str());
   TLV8 rkrTLv;
   rkrTLv.parse(buf.data(), buf.size());
   tlv_it tlvReaderKey = rkrTLv.find(kReader_Req_Reader_Private_Key);
+  if(tlvReaderKey == rkrTLv.end()){ LOG(D, "kReader_Req_Reader_Private_Key not found"); return -1;}
   std::vector<uint8_t> readerKey = tlvReaderKey->value;
   tlv_it tlvUniqueId = rkrTLv.find(kReader_Req_Identifier);
+  if(tlvUniqueId == rkrTLv.end()){ LOG(D, "kReader_Req_Identifier not found"); return -1;}
   std::vector<uint8_t> uniqueIdentifier = tlvUniqueId->value;
   if (readerKey.size() > 0 && uniqueIdentifier.size() > 0) {
     LOG(D, "Reader Key: %s", red_log::bufToHexString(readerKey.data(), readerKey.size()).c_str());
