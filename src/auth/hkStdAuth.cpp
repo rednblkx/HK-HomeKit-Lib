@@ -6,7 +6,7 @@
 #include <mbedtls/hkdf.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/bignum.h>
-#include <TLV8.h>
+#include <TLV8.hpp>
 #include <mbedtls/ecdsa.h>
 #include <vector>
 /**
@@ -119,12 +119,12 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, DigitalKeySecureContext, std::vector<ui
     LOG(D, "Decrypted Length: %d, Data: %s", response_result.size(), red_log::bufToHexString(response_result.data(), response_result.size()).c_str());
     if (response_result.size() > 0)
     {
-      TLV decryptedTlv(NULL, 0);
-      decryptedTlv.unpack(response_result.data(), response_result.size());
-      TLV_it devId = decryptedTlv.find(0x4E);
-      TLV_it sig = decryptedTlv.find(0x9E);
-      std::vector<uint8_t> device_identifier{(*devId).val.get(), (*devId).val.get() + (*devId).len};
-      std::vector<uint8_t> signature{(*sig).val.get(), (*sig).val.get() + (*sig).len};
+      TLV8 decryptedTlv;
+      decryptedTlv.parse(response_result.data(), response_result.size());
+      tlv_it devId = decryptedTlv.find(0x4E);
+      tlv_it sig = decryptedTlv.find(0x9E);
+      std::vector<uint8_t> device_identifier = devId->value;
+      std::vector<uint8_t> signature = sig->value;
       LOG(D, "Device Identifier: %s", red_log::bufToHexString(device_identifier.data(), device_identifier.size()).c_str());
       LOG(D, "Signature: %s", red_log::bufToHexString(signature.data(), signature.size()).c_str());
       if (device_identifier.size() == 0)

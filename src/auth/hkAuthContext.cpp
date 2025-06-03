@@ -1,5 +1,4 @@
 #include <hkAuthContext.h>
-#include "DigitalKeySecureContext.h"
 #include "CommonCryptoUtils.h"
 #include "hkFastAuth.h"
 #include "hkStdAuth.h"
@@ -9,7 +8,7 @@
 #include <esp_random.h>
 #include <mbedtls/sha1.h>
 #include <chrono>
-#include <TLV8.h>
+#include <TLV8.hpp>
 
 /**
  * The HKAuthenticationContext constructor generates an ephemeral key for the reader and initializes
@@ -83,18 +82,18 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
   ESP_LOG_BUFFER_HEX_LEVEL(TAG, response.data(), response.size(), ESP_LOG_VERBOSE);
   LOG(D, "Auth0 Response Length: %d, DATA: %s", response.size(), red_log::bufToHexString(response.data(), response.size()).c_str());
   if (response.size() > 64 && response[0] == 0x86) {
-    TLV Auth0Res(NULL, 0);
-    Auth0Res.unpack(response.data(), response.size());
-    TLV_it pubkey = Auth0Res.find(kEndpoint_Public_Key);
-    endpointEphPubKey = std::vector<uint8_t>{ (*pubkey).val.get(), (*pubkey).val.get() + (*pubkey).len };
+    TLV8 Auth0Res;
+    Auth0Res.parse(response.data(), response.size());
+    tlv_it pubkey = Auth0Res.find(kEndpoint_Public_Key);
+    endpointEphPubKey = pubkey->value;
     endpointEphX = CommonCryptoUtils::get_x(endpointEphPubKey);
     hkIssuer_t *foundIssuer = nullptr;
     hkEndpoint_t *foundEndpoint = nullptr;
     std::vector<uint8_t> persistentKey;
     KeyFlow flowUsed = kFlowFailed;
     if (hkFlow == kFlowFAST) {
-      TLV_it crypt = Auth0Res.find(kAuth0_Cryptogram);
-      std::vector<uint8_t> encryptedMessage{(*crypt).val.get(), (*crypt).val.get() + (*crypt).len};
+      tlv_it crypt = Auth0Res.find(kAuth0_Cryptogram);
+      std::vector<uint8_t> encryptedMessage = crypt->value;
       auto fastAuth = HKFastAuth(readerData.reader_pk_x, readerData.issuers, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier).attest(encryptedMessage);
       if (std::get<1>(fastAuth) != nullptr && (flowUsed = std::get<2>(fastAuth)) == kFlowFAST)
       {
