@@ -8,8 +8,7 @@
 #include <mbedtls/error.h>
 #include <vector>
 
-HK_HomeKit::HK_HomeKit(readerData_t& readerData, nvs_handle& nvsHandle, const char* nvsKey, std::vector<uint8_t>& tlvData) : tlvData(tlvData), readerData(readerData), nvsHandle(nvsHandle), nvsKey(nvsKey) {
-}
+HK_HomeKit::HK_HomeKit(readerData_t& readerData, const std::function<void(const readerData_t&)> &save_cb, const std::function<void()> &remove_key_cb, std::vector<uint8_t>& tlvData) : tlvData(tlvData), readerData(readerData), save_cb(save_cb), remove_key_cb(remove_key_cb) { }
 
 std::vector<uint8_t> HK_HomeKit::processResult() {
   tlv_it operation;
@@ -77,10 +76,10 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
   if (*operation->data() == kReader_Operation_Remove)
     if (RKR != rxTlv.end()) {
       LOG(I,"REMOVE READER KEY REQUEST");
-      readerData.reader_gid.clear();
-      readerData.reader_id.clear();
-      readerData.reader_sk.clear();
-      save_to_nvs();
+      // readerData.reader_gid.clear();
+      // readerData.reader_id.clear();
+      // readerData.reader_sk.clear();
+      // save_cb(readerData);
       return std::vector<uint8_t>{ 0x7, 0x3, 0x2, 0x1, 0x0 };
     }
   return std::vector<uint8_t>();
@@ -197,18 +196,18 @@ std::tuple<std::vector<uint8_t>, int> HK_HomeKit::provision_device_cred(std::vec
         endpoint.endpoint_pk = devicePubKey;
         endpoint.endpoint_pk_x = x_coordinate;
         foundIssuer->endpoints.emplace_back(endpoint);
-        save_to_nvs();
+        save_cb(readerData);
         return std::make_tuple(foundIssuer->issuer_id, SUCCESS);
       }
       else {
         LOG(D, "Endpoint already exists - ID: %s", red_log::bufToHexString(foundEndpoint->endpoint_id.data(), 6).c_str());
-        save_to_nvs();
+        save_cb(readerData);
         return std::make_tuple(issuerIdentifier, DUPLICATE);
       }
     }
     else {
       LOG(D, "Issuer does not exist - ID: %s", red_log::bufToHexString(issuerIdentifier.data(), 8).c_str());
-      save_to_nvs();
+      save_cb(readerData);
       return std::make_tuple(issuerIdentifier, DOES_NOT_EXIST);
     }
   }
@@ -239,21 +238,7 @@ int HK_HomeKit::set_reader_key(std::vector<uint8_t>& buf) {
     std::vector<uint8_t> readeridentifier = getHashIdentifier(readerData.reader_sk, true);
     LOG(D, "Reader GroupIdentifier: %s", red_log::bufToHexString(readeridentifier.data(), 8).c_str());
     readerData.reader_gid = std::vector<uint8_t>{readeridentifier.begin(), readeridentifier.begin() + 8};
-    bool nvs = save_to_nvs();
-    if (nvs) {
-      return 0;
-    }
-    else
-      return -1;
+    save_cb(readerData);
   }
   return -1;
-}
-
-bool HK_HomeKit::save_to_nvs() {
-  std::vector<uint8_t> data = json::to_msgpack(readerData);
-  esp_err_t set_nvs = nvs_set_blob(nvsHandle, nvsKey, data.data(), data.size());
-  esp_err_t commit_nvs = nvs_commit(nvsHandle);
-  LOG(D, "NVS SET STATUS: %s", esp_err_to_name(set_nvs));
-  LOG(D, "NVS COMMIT STATUS: %s", esp_err_to_name(commit_nvs));
-  return !set_nvs && !commit_nvs;
 }

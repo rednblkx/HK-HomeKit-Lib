@@ -23,7 +23,7 @@
  * `nvs_handle`, which is a handle to a Non-Volatile Storage (NVS) namespace in ESP-IDF
  * (Espressif IoT Development Framework). This handle is used to access and manipulate data stored.
  */
-HKAuthenticationContext::HKAuthenticationContext(const std::function<bool(std::vector<uint8_t>&, std::vector<uint8_t>&, bool)> &nfc, readerData_t &readerData, nvs_handle &savedData) : readerData(readerData), savedData(savedData), nfc(nfc), transactionIdentifier(16)
+HKAuthenticationContext::HKAuthenticationContext(const std::function<bool(std::vector<uint8_t>&, std::vector<uint8_t>&, bool)> &nfc, readerData_t &readerData, const std::function<void(const readerData_t&)> &save_cb) : readerData(readerData), nfc(nfc), save_cb(save_cb), transactionIdentifier(16)
 {
   // esp_log_level_set(TAG, ESP_LOG_VERBOSE);
   auto startTime = std::chrono::high_resolution_clock::now();
@@ -135,11 +135,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
         }
       }
       if(flowUsed >= kFlowSTANDARD && persistentKey.size() > 0){
-        std::vector<uint8_t> data = json::to_msgpack(readerData);
-        esp_err_t set_nvs = nvs_set_blob(savedData, "READERDATA", data.data(), data.size());
-        esp_err_t commit_nvs = nvs_commit(savedData);
-        LOG(D, "NVS SET STATUS: %s", esp_err_to_name(set_nvs));
-        LOG(D, "NVS COMMIT STATUS: %s", esp_err_to_name(commit_nvs));
+        save_cb(readerData);
       }
     }
     if(foundEndpoint != nullptr && flowUsed != kFlowFailed) {
