@@ -9,6 +9,7 @@
 #include <TLV8.hpp>
 #include <mbedtls/ecdsa.h>
 #include <vector>
+
 /**
  * The function `Auth1_keys_generator` generates persistent and volatile keys using a shared key and
  * X963KDF algorithm.
@@ -37,11 +38,6 @@ void HKStdAuth::Auth1_keys_generator(uint8_t *persistentKey, uint8_t *volatileKe
   LOG(D, "Volatile Key: %s", red_log::bufToHexString(volatileKey, 48).c_str());
 }
 
-void HKStdAuth::pack(const uint8_t* buf, size_t buflen, uint8_t* out, size_t* olen) {
-  std::move(buf, buf + buflen, out + *olen);
-  *olen += buflen;
-}
-
 /**
  * The function `Auth1_keying_material` generates keying material using various input data and the HKDF
  * algorithm.
@@ -60,18 +56,19 @@ void HKStdAuth::Auth1_keying_material(uint8_t *keyingMaterial, const char *conte
   uint8_t flags[2] = {0x01, 0x01};
   uint8_t prot_ver[4] = {0x5c, 0x02, 0x02, 0x0};
   uint8_t supported_vers[6] = {0x5c, 0x04, 0x02, 0x0, 0x01, 0x0};
-  uint8_t dataMaterial[readerEphX.size() + endpointEphX.size() + transactionIdentifier.size() + 1 + sizeof(flags) + strlen(context) + sizeof(prot_ver) + sizeof(supported_vers)];
-  size_t olen = 0;
-  pack(readerEphX.data(), readerEphX.size(), dataMaterial, &olen);
-  pack(endpointEphX.data(), endpointEphX.size(), dataMaterial, &olen);
-  pack(transactionIdentifier.data(), 16, dataMaterial, &olen);
-  pack(&interface, 1, dataMaterial, &olen);
-  pack(flags, 2, dataMaterial, &olen);
-  pack((uint8_t *)context, strlen(context), dataMaterial, &olen);
-  pack(prot_ver, sizeof(prot_ver), dataMaterial, &olen);
-  pack(supported_vers, sizeof(supported_vers), dataMaterial, &olen);
-  LOG(D, "DATA Material Length: %d, Data: %s", sizeof(dataMaterial), red_log::bufToHexString(dataMaterial, sizeof(dataMaterial)).c_str());
-  mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial, 32, dataMaterial, olen, out, outLen);
+  std::vector<uint8_t> dataMaterial;
+  dataMaterial.reserve(readerEphX.size() + endpointEphX.size() + transactionIdentifier.size() + 1 + sizeof(flags) + strlen(context) + sizeof(prot_ver) + sizeof(supported_vers));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(readerEphX.begin()), std::make_move_iterator(readerEphX.end()));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(endpointEphX.begin()), std::make_move_iterator(endpointEphX.end()));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(transactionIdentifier.begin()), std::make_move_iterator(transactionIdentifier.end()));
+  dataMaterial.push_back(interface);
+  dataMaterial.push_back(flags[0]);
+  dataMaterial.push_back(flags[1]);
+  dataMaterial.insert(dataMaterial.end(), (uint8_t*)context, (uint8_t*)context + strlen(context));
+  dataMaterial.insert(dataMaterial.end(), prot_ver, prot_ver + sizeof(prot_ver));
+  dataMaterial.insert(dataMaterial.end(), supported_vers, supported_vers + sizeof(supported_vers));
+  LOG(D, "DATA Material Length: %d, Data: %s", sizeof(dataMaterial), red_log::bufToHexString(dataMaterial.data(), dataMaterial.size()).c_str());
+  mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial, 32, dataMaterial.data(), dataMaterial.size(), out, outLen);
 }
 
 /**

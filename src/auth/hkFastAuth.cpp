@@ -1,11 +1,7 @@
 #include "hkFastAuth.h"
 #include "logging.h"
 #include <mbedtls/hkdf.h>
-
-void HKFastAuth::pack(const uint8_t* buf, size_t buflen, uint8_t* out, size_t* olen) {
-  std::move(buf, buf + buflen, out + *olen);
-  *olen += buflen;
-}
+#include <vector>
 
 /**
  * The function `Auth0_keying_material` generates keying material using the HKDF algorithm based on
@@ -29,21 +25,22 @@ void HKFastAuth::Auth0_keying_material(const char *context, const std::vector<ui
   uint8_t flags[2] = {0x01, 0x01};
   uint8_t prot_ver[4] = {0x5c, 0x02, 0x02, 0x0};
   uint8_t supported_vers[6] = {0x5c, 0x04, 0x02, 0x0, 0x01, 0x0};
-  uint8_t dataMaterial[32 + strlen(context) + readerIdentifier.size() + 32 + 1 + sizeof(supported_vers) + sizeof(prot_ver) + readerEphX.size() + 16 + 2 + endpointEphX.size()];
-  size_t olen = 0;
-  pack(reader_key_X.data(), 32, dataMaterial, &olen);
-  pack((uint8_t *)context, strlen(context), dataMaterial, &olen);
-  pack(readerIdentifier.data(), readerIdentifier.size(), dataMaterial, &olen);
-  pack(ePub_X.data(), 32, dataMaterial, &olen);
-  pack(&interface, 1, dataMaterial, &olen);
-  pack(supported_vers, sizeof(supported_vers), dataMaterial, &olen);
-  pack(prot_ver, sizeof(prot_ver), dataMaterial, &olen);
-  pack(readerEphX.data(), readerEphX.size(), dataMaterial, &olen);
-  pack(transactionIdentifier.data(), 16, dataMaterial, &olen);
-  pack(flags, 2, dataMaterial, &olen);
-  pack(endpointEphX.data(), endpointEphX.size(), dataMaterial, &olen);
-  LOG(D, "Auth0 HKDF Material: %s", red_log::bufToHexString(dataMaterial, sizeof(dataMaterial)).c_str());
-  int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial.data(), keyingMaterial.size(), dataMaterial, sizeof(dataMaterial), out, outLen);
+  std::vector<uint8_t> dataMaterial;
+  dataMaterial.reserve(32 + strlen(context) + readerIdentifier.size() + 32 + 1 + sizeof(supported_vers) + sizeof(prot_ver) + readerEphX.size() + 16 + 2 + endpointEphX.size());
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(reader_key_X.begin()), std::make_move_iterator(reader_key_X.end()));
+  dataMaterial.insert(dataMaterial.end(), (uint8_t *)context, (uint8_t*)context + strlen(context));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(readerIdentifier.begin()), std::make_move_iterator(readerIdentifier.end()));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(ePub_X.begin()), std::make_move_iterator(ePub_X.end()));
+  dataMaterial.push_back(interface);
+  dataMaterial.insert(dataMaterial.end(), supported_vers, supported_vers + sizeof(supported_vers));
+  dataMaterial.insert(dataMaterial.end(), prot_ver, prot_ver + sizeof(prot_ver));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(readerEphX.begin()), std::make_move_iterator(readerEphX.end()));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(transactionIdentifier.begin()), std::make_move_iterator(transactionIdentifier.end()));
+  dataMaterial.push_back(flags[0]);
+  dataMaterial.push_back(flags[1]);
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(endpointEphX.begin()), std::make_move_iterator(endpointEphX.end()));
+  LOG(D, "Auth0 HKDF Material: %s", red_log::bufToHexString(dataMaterial.data(), dataMaterial.size()).c_str());
+  int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial.data(), keyingMaterial.size(), dataMaterial.data(), dataMaterial.size(), out, outLen);
   LOG(V, "HKDF Status: %d", ret);
 }
 
