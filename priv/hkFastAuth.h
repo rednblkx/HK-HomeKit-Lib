@@ -11,7 +11,6 @@ private:
   std::vector<uint8_t> &endpointEphX;
   std::vector<uint8_t> &transactionIdentifier;
   std::vector<uint8_t>& readerIdentifier;
-  void pack(const uint8_t* buf, size_t buflen, uint8_t* out, size_t* olen);
   void Auth0_keying_material(const char* context, const std::vector<uint8_t>& ePub_X, const std::vector<uint8_t>& keyingMaterial, uint8_t* out, size_t outLen);
   std::tuple<hkIssuer_t *, hkEndpoint_t *> find_endpoint_by_cryptogram(std::vector<uint8_t>& cryptogram);
 public:
