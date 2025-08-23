@@ -8,10 +8,8 @@
 #include <mbedtls/error.h>
 #include <logging.h>
 #include <cbor.h>
-#include <nlohmann/json.hpp>
 #include <vector>
-
-using json = nlohmann::json;
+#include <array>
 
 const std::array<uint8_t, 8> READER_CONTEXT = {'S', 'K', 'R', 'e', 'a', 'd', 'e', 'r'};
 const std::array<uint8_t, 8> ENDPOINT_CONTEXT = {'S', 'K', 'D', 'e', 'v', 'i', 'c', 'e'};
@@ -122,14 +120,46 @@ std::vector<uint8_t> ISO18013SecureContext::decryptMessageFromEndpoint(const std
     {
         return std::vector<unsigned char>();
     }
-    json j = json::from_cbor(message);
 
-    LOG(V, "ENC MSG: %s", j.dump().c_str());
-    json data = j.at("data");
-    if (!data.is_binary()) return std::vector<uint8_t>();
-    auto& cborCiphertext = data.get_binary();
-    if (data.size() == 0) {
-        return std::vector<unsigned char>();
+    std::vector<uint8_t> cborCiphertext;
+
+    CborParser parser;
+    CborValue root_map, data_value;
+    CborError err;
+
+    // Initialize the parser and check that the root element is a map.
+    err = cbor_parser_init(message.data(), message.size(), 0, &parser, &root_map);
+    if (err != CborNoError || !cbor_value_is_map(&root_map)) {
+        return std::vector<uint8_t>();
+    }
+
+    // Find the value associated with the key "data".
+    err = cbor_value_map_find_value(&root_map, "data", &data_value);
+    if (err != CborNoError) {
+        // This indicates the key "data" was not found or a parsing error occurred.
+        return std::vector<uint8_t>();
+    }
+
+    // Check that the value found is a byte string.
+    if (!cbor_value_is_byte_string(&data_value)) {
+        return std::vector<uint8_t>();
+    }
+
+    // Get the length of the byte string.
+    size_t len;
+    err = cbor_value_get_string_length(&data_value, &len);
+
+    // Return if there was an error or if the byte string is empty.
+    if (err != CborNoError || len == 0) {
+        return std::vector<uint8_t>();
+    }
+
+    // Resize the output vector and copy the byte string data into it.
+    cborCiphertext.resize(len);
+    err = cbor_value_copy_byte_string(&data_value, cborCiphertext.data(), &len, nullptr);
+    if (err != CborNoError) {
+        // If the copy fails, return an empty vector.
+        return std::vector<uint8_t>();
     }
     std::vector<uint8_t> plaintext(cborCiphertext.size() - 16);
 

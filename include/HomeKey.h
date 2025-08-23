@@ -1,7 +1,7 @@
 #pragma once
-#include "nlohmann/json.hpp"
 
-using json = nlohmann::json;
+#include <cstdint>
+#include <vector>
 
 typedef enum
 {
@@ -116,33 +116,6 @@ struct hkEndpoint_t
   std::vector<uint8_t> endpoint_pk_x;
   std::vector<uint8_t> endpoint_prst_k;
   // hkEnrollments_t enrollments;
-  friend void to_json(nlohmann::json& nlohmann_json_j, const hkEndpoint_t& nlohmann_json_t) {
-    nlohmann_json_j["endpointId"] = nlohmann_json_t.endpoint_id;
-    nlohmann_json_j["last_used_at"] = nlohmann_json_t.last_used_at;
-    nlohmann_json_j["counter"] = nlohmann_json_t.counter;
-    nlohmann_json_j["key_type"] = nlohmann_json_t.key_type;
-    nlohmann_json_j["publicKey"] = nlohmann_json_t.endpoint_pk;
-    nlohmann_json_j["endpoint_key_x"] = nlohmann_json_t.endpoint_pk_x;
-    nlohmann_json_j["persistent_key"] = nlohmann_json_t.endpoint_prst_k;
-  }
-  friend void from_json(const nlohmann::json& nlohmann_json_j, hkEndpoint_t& nlohmann_json_t) {
-    const hkEndpoint_t nlohmann_json_default_obj{};
-    if (nlohmann_json_j.contains("endpointId") && nlohmann_json_j["endpointId"].is_binary()) {
-      nlohmann_json_t.endpoint_id = nlohmann_json_j["endpointId"].get_binary();
-      nlohmann_json_t.endpoint_pk_x = nlohmann_json_j["endpoint_key_x"].get_binary();
-      nlohmann_json_t.endpoint_prst_k = nlohmann_json_j["persistent_key"].get_binary();
-      nlohmann_json_t.endpoint_pk = nlohmann_json_j["publicKey"].get_binary();
-    }
-    else {
-      nlohmann_json_t.endpoint_id = nlohmann_json_j.value("endpointId", nlohmann_json_default_obj.endpoint_id);
-      nlohmann_json_t.endpoint_pk = nlohmann_json_j.value("publicKey", nlohmann_json_default_obj.endpoint_pk);
-      nlohmann_json_t.endpoint_pk_x = nlohmann_json_j.value("endpoint_key_x", nlohmann_json_default_obj.endpoint_pk_x);
-      nlohmann_json_t.endpoint_prst_k = nlohmann_json_j.value("persistent_key", nlohmann_json_default_obj.endpoint_prst_k);
-    }
-    nlohmann_json_t.last_used_at = nlohmann_json_j.value("last_used_at", nlohmann_json_default_obj.last_used_at);
-    nlohmann_json_t.counter = nlohmann_json_j.value("counter", nlohmann_json_default_obj.counter);
-    nlohmann_json_t.key_type = nlohmann_json_j.value("key_type", nlohmann_json_default_obj.key_type);
-  }
 };
 
 struct hkIssuer_t
@@ -151,26 +124,6 @@ struct hkIssuer_t
   std::vector<uint8_t> issuer_pk;
   std::vector<uint8_t> issuer_pk_x;
   std::vector<hkEndpoint_t> endpoints;
-  friend void to_json(nlohmann::json& nlohmann_json_j, const hkIssuer_t& nlohmann_json_t) {
-    nlohmann_json_j["issuerId"] = nlohmann_json_t.issuer_id;
-    nlohmann_json_j["publicKey"] = nlohmann_json_t.issuer_pk;
-    nlohmann_json_j["issuer_key_x"] = nlohmann_json_t.issuer_pk_x;
-    nlohmann_json_j["endpoints"] = nlohmann_json_t.endpoints;
-  }
-  friend void from_json(const nlohmann::json& nlohmann_json_j, hkIssuer_t& nlohmann_json_t) {
-    const hkIssuer_t nlohmann_json_default_obj{};
-    if (nlohmann_json_j.contains("issuerId") && nlohmann_json_j["issuerId"].is_binary()) {
-      nlohmann_json_t.issuer_id = nlohmann_json_j["issuerId"].get_binary();
-      nlohmann_json_t.issuer_pk = nlohmann_json_j["publicKey"].get_binary();
-      nlohmann_json_t.issuer_pk_x = nlohmann_json_j["issuer_key_x"].get_binary();
-    }
-    else {
-      nlohmann_json_t.issuer_id = nlohmann_json_j.value("issuerId", nlohmann_json_default_obj.issuer_id);
-      nlohmann_json_t.issuer_pk = nlohmann_json_j.value("publicKey", nlohmann_json_default_obj.issuer_pk);
-      nlohmann_json_t.issuer_pk_x = nlohmann_json_j.value("issuer_key_x", nlohmann_json_default_obj.issuer_pk_x);
-      nlohmann_json_t.endpoints = nlohmann_json_j.value("endpoints", nlohmann_json_default_obj.endpoints);
-    }
-  }
 };
 
 struct readerData_t
@@ -182,29 +135,5 @@ struct readerData_t
   std::vector<uint8_t> reader_gid;
   std::vector<uint8_t> reader_id;
   std::vector<hkIssuer_t> issuers;
-  friend void to_json(nlohmann::json& nlohmann_json_j, const readerData_t& nlohmann_json_t) {
-    nlohmann_json_j["reader_private_key"] = nlohmann_json_t.reader_sk;
-    nlohmann_json_j["reader_public_key"] = nlohmann_json_t.reader_pk;
-    nlohmann_json_j["reader_key_x"] = nlohmann_json_t.reader_pk_x;
-    nlohmann_json_j["group_identifier"] = nlohmann_json_t.reader_gid;
-    nlohmann_json_j["unique_identifier"] = nlohmann_json_t.reader_id;
-    nlohmann_json_j["issuers"] = nlohmann_json_t.issuers;
-  }
-  friend void from_json(const nlohmann::json& nlohmann_json_j, readerData_t& nlohmann_json_t) {
-    const readerData_t nlohmann_json_default_obj{};
-    if (nlohmann_json_j.contains("group_identifier") && nlohmann_json_j["group_identifier"].is_binary()) {
-      nlohmann_json_t.reader_sk = nlohmann_json_j["reader_private_key"].get_binary();
-      nlohmann_json_t.reader_pk_x = nlohmann_json_j["reader_key_x"].get_binary();
-      nlohmann_json_t.reader_gid = nlohmann_json_j["group_identifier"].get_binary();
-      nlohmann_json_t.reader_id = nlohmann_json_j["unique_identifier"].get_binary();
-      nlohmann_json_t.reader_pk = nlohmann_json_j["reader_public_key"].get_binary();
-    } else {
-      nlohmann_json_t.reader_sk = nlohmann_json_j.value("reader_private_key", nlohmann_json_default_obj.reader_sk);
-      nlohmann_json_t.reader_pk = nlohmann_json_j.value("reader_public_key", nlohmann_json_default_obj.reader_pk);
-      nlohmann_json_t.reader_pk_x = nlohmann_json_j.value("reader_key_x", nlohmann_json_default_obj.reader_pk_x);
-      nlohmann_json_t.reader_gid = nlohmann_json_j.value("group_identifier", nlohmann_json_default_obj.reader_gid);
-      nlohmann_json_t.reader_id = nlohmann_json_j.value("unique_identifier", nlohmann_json_default_obj.reader_id);
-    }
-    nlohmann_json_t.issuers = nlohmann_json_j.value("issuers", nlohmann_json_default_obj.issuers);
-  }
 };
+

@@ -1,6 +1,7 @@
 #pragma once
 #include "HomeKey.h"
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 class HKAuthenticationContext

@@ -1,6 +1,7 @@
 #pragma once
 #include "HomeKey.h"
 #include "DigitalKeySecureContext.h"
+#include <functional>
 #include <vector>
 
 class HKStdAuth

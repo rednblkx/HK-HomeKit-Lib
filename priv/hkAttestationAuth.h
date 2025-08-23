@@ -1,8 +1,7 @@
 #include "HomeKey.h"
 #include "DigitalKeySecureContext.h"
+#include <functional>
 // #include "esp_log_level.h"
-
-using json = nlohmann::json;
 
 class HKAttestationAuth
 {

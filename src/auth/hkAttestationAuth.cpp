@@ -200,89 +200,278 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   return std::vector<uint8_t>();
 }
 
+// Helper function to copy a CborValue byte string to a std::vector
+CborError copy_byte_string(CborValue *value, std::vector<uint8_t> &target) {
+    if (!cbor_value_is_byte_string(value)) {
+        return CborErrorIllegalType;
+    }
+    size_t len;
+    CborError err = cbor_value_get_string_length(value, &len);
+    if (err != CborNoError) {
+        return err;
+    }
+    target.resize(len);
+    return cbor_value_copy_byte_string(value, target.data(), &len, nullptr);
+}
+
+
 std::tuple<hkIssuer_t*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vector<uint8_t>& decryptedCbor) {
-  json root = json::from_cbor(decryptedCbor, false, false, nlohmann::json::cbor_tag_handler_t::store);
-  hkIssuer_t* foundIssuer = nullptr;
-  std::vector<uint8_t> protectedHeaders;
-  std::vector<uint8_t> issuerId;
-  json a;
-  json b;
-  json c;
-  json d;
-  std::vector<uint8_t> data;
-  std::vector<uint8_t> deviceKeyX;
-  std::vector<uint8_t> deviceKeyY;
-  std::vector<uint8_t> devicePubKey;
-  std::vector<uint8_t> signature;
-  json j_keyX;
-  json j_keyY;
-  if (!root.is_discarded() && root.contains("documents")) {
-    a = root.at("documents");
-    if (a.is_array() && a.size() > 0) {
-      b = a[0].at("issuerSigned").at("issuerAuth");
-      json ar = a[0].at("issuerSigned").at("issuerAuth");
-      if (ar.is_array() && ar.size() >= 4 && ar[0].is_binary() && ar[3].is_binary()) {
-        protectedHeaders = ar[0].get_binary();
-        signature = ar[3].get_binary();
-        if (ar[1].at("4").is_binary()) {
-          issuerId = ar[1].at("4").get_binary();
+    hkIssuer_t* foundIssuer = nullptr;
+    std::vector<uint8_t> devicePubKey;
+
+    LOG(D, "Starting attestation verification with %d bytes of CBOR.", decryptedCbor.size());
+
+    do {
+        CborParser parser;
+        CborValue root, documents_array, document, issuer_signed, issuer_auth, issuer_auth_array;
+        CborError err;
+
+        err = cbor_parser_init(decryptedCbor.data(), decryptedCbor.size(), 0, &parser, &root);
+        if (err != CborNoError) {
+            LOG(E, "CBOR parser initialization failed. Error: %d", err);
+            break;
         }
-        else goto err;
-      }
-      else goto err;
-    }
-    else goto err;
+        if (!cbor_value_is_map(&root)) {
+            LOG(E, "Root CBOR element is not a map.");
+            break;
+        }
+        LOG(V, "Successfully initialized CBOR parser.");
 
-    if (b.is_array() && b.size() >= 3 && b[2].is_binary()) {
-      data = b[2].get_binary();
-      c = json::from_cbor(data, false, true, json::cbor_tag_handler_t::store);
-      if (!c.get_binary().has_subtype()) goto err;
-    }
-    else goto err;
+        // Find "documents"
+        err = cbor_value_map_find_value(&root, "documents", &documents_array);
+        if (err != CborNoError) {
+            LOG(E, "Failed to find 'documents' key. Error: %d", err);
+            break;
+        }
+        if (!cbor_value_is_array(&documents_array)) {
+            LOG(E, "'documents' value is not an array.");
+            break;
+        }
+        LOG(V, "Found 'documents' array.");
 
-    d = json::from_cbor(c.get_binary(), false, true, json::cbor_tag_handler_t::store);
-    j_keyX = d.at("deviceKeyInfo").at("deviceKey").at("-2");
-    j_keyY = d.at("deviceKeyInfo").at("deviceKey").at("-3");
-    if (!j_keyX.is_binary()) goto err;
-    if (!j_keyY.is_binary()) goto err;
-    deviceKeyX = j_keyX.get_binary();
-    deviceKeyY = j_keyY.get_binary();
-    devicePubKey.push_back(0x04);
-    devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyX.begin()), std::make_move_iterator(deviceKeyX.end()));
-    devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyY.begin()), std::make_move_iterator(deviceKeyY.end()));
-  }
-    for (auto &&issuer : issuers)
-    {
-      if (std::equal(issuer.issuer_id.begin(), issuer.issuer_id.end(), issuerId.begin())) {
-        LOG(D, "Found Issuer: %s", red_log::bufToHexString(issuer.issuer_id.data(), issuer.issuer_id.size()).c_str());
-        foundIssuer = &issuer;
-      }
-    }
+        // Enter first document
+        err = cbor_value_enter_container(&documents_array, &document);
+        if (err != CborNoError) {
+            LOG(E, "Failed to enter 'documents' container. Error: %d", err);
+            break;
+        }
+        if (!cbor_value_is_map(&document)) {
+            LOG(E, "First element in 'documents' is not a map.");
+            break;
+        }
+        LOG(V, "Entered first document map.");
 
-    if (foundIssuer != nullptr) {
-      CborEncoder package;
-      std::vector<uint8_t> packageBuf(strlen("Signature1") + protectedHeaders.size() + data.size() + 8);
-      cbor_encoder_init(&package, packageBuf.data(), packageBuf.size(), 0);
-      CborEncoder packageArray;
-      cbor_encoder_create_array(&package, &packageArray, 4);
-      cbor_encode_text_stringz(&packageArray, "Signature1");
-      cbor_encode_byte_string(&packageArray, protectedHeaders.data(), protectedHeaders.size());
-      cbor_encode_byte_string(&packageArray, {}, 0);
-      cbor_encode_byte_string(&packageArray, data.data(), data.size());
-      cbor_encoder_close_container(&package, &packageArray);
-      size_t package_size = cbor_encoder_get_buffer_size(&package, packageBuf.data());
-      LOG(D, "CBOR SIZE: %d", package_size);
-      LOG(D, "SIGNED PACKAGE: %s", red_log::bufToHexString(packageBuf.data(), package_size).c_str());
+        // Find "issuerSigned"
+        err = cbor_value_map_find_value(&document, "issuerSigned", &issuer_signed);
+        if (err != CborNoError) {
+            LOG(E, "Failed to find 'issuerSigned' key. Error: %d", err);
+            break;
+        }
+        if (!cbor_value_is_map(&issuer_signed)) {
+            LOG(E, "'issuerSigned' value is not a map.");
+            break;
+        }
+        LOG(V, "Found 'issuerSigned' map.");
 
-      int res = crypto_sign_ed25519_verify_detached(signature.data(), packageBuf.data(), package_size, foundIssuer->issuer_pk.data());
-      if (res) {
-        LOG(E, "Failed to verify attestation signature: %d", res);
-        goto err;
-      }
-      return std::make_tuple(foundIssuer, devicePubKey);
-    }
-  err:
-    return std::make_tuple(foundIssuer, std::vector<uint8_t>());
+        // Find "issuerAuth"
+        err = cbor_value_map_find_value(&issuer_signed, "issuerAuth", &issuer_auth);
+        if (err != CborNoError) {
+            LOG(E, "Failed to find 'issuerAuth' key. Error: %d", err);
+            break;
+        }
+        if (!cbor_value_is_array(&issuer_auth)) {
+            LOG(E, "'issuerAuth' value is not an array.");
+            break;
+        }
+        LOG(V, "Found 'issuerAuth' array. Starting extraction...");
+        
+        // --- Start Parsing issuerAuth array ---
+        std::vector<uint8_t> protectedHeaders, issuerId, data, signature;
+
+        err = cbor_value_enter_container(&issuer_auth, &issuer_auth_array);
+        if (err != CborNoError) {
+            LOG(E, "Failed to enter 'issuerAuth' container. Error: %d", err);
+            break;
+        }
+
+        // protectedHeaders (byte string)
+        if (copy_byte_string(&issuer_auth_array, protectedHeaders) != CborNoError) {
+            LOG(E, "Failed to copy protectedHeaders or it's not a byte string.");
+            break;
+        }
+        LOG(D, "Extracted protectedHeaders, size: %d", protectedHeaders.size());
+        if (cbor_value_advance(&issuer_auth_array) != CborNoError) {
+            LOG(E, "Failed to advance past protectedHeaders.");
+            break;
+        }
+
+        // unprotectedHeaders (map), find issuerId by key 4
+        CborValue unprotected_headers;
+        if (!cbor_value_is_map(&issuer_auth_array)) {
+            LOG(E, "Expected unprotectedHeaders map, found other type.");
+            break;
+        }
+        err = cbor_value_enter_container(&issuer_auth_array, &unprotected_headers);
+        if (err != CborNoError) {
+            LOG(E, "Failed to enter unprotectedHeaders container. Error: %d", err);
+            break;
+        }
+        
+        while (!cbor_value_at_end(&unprotected_headers)) {
+            if (cbor_value_is_integer(&unprotected_headers)) {
+                int64_t key;
+                cbor_value_get_int64(&unprotected_headers, &key);
+                err = cbor_value_advance(&unprotected_headers);
+                if (err != CborNoError) { LOG(E, "Failed to advance to value in unprotectedHeaders."); break; }
+
+                if (key == 4) { // issuerId
+                    if (copy_byte_string(&unprotected_headers, issuerId) != CborNoError) {
+                        err = CborErrorInternalError; 
+                        LOG(E, "Failed to copy issuerId value.");
+                        break;
+                    }
+                    LOG(D, "Extracted issuerId: %s", red_log::bufToHexString(issuerId.data(), issuerId.size()).c_str());
+                }
+            }
+            if (cbor_value_at_end(&unprotected_headers)) break;
+            err = cbor_value_advance(&unprotected_headers); // Advance past value to next key
+            if (err != CborNoError) { LOG(E, "Failed to advance to next key in unprotectedHeaders."); break; }
+        }
+        if (err != CborNoError) break;
+        
+        err = cbor_value_leave_container(&issuer_auth_array, &unprotected_headers);
+        if (err != CborNoError) {
+            LOG(E, "Failed to leave unprotectedHeaders container. Error: %d", err);
+            break;
+        }
+        
+        // data (byte string containing nested CBOR)
+        if (copy_byte_string(&issuer_auth_array, data) != CborNoError) {
+            LOG(E, "Failed to copy inner 'data' payload or it's not a byte string.");
+            break;
+        }
+        LOG(D, "Extracted inner 'data' payload, size: %d", data.size());
+        if (cbor_value_advance(&issuer_auth_array) != CborNoError) {
+            LOG(E, "Failed to advance past inner 'data' payload.");
+            break;
+        }
+        
+        // signature (byte string)
+        if (copy_byte_string(&issuer_auth_array, signature) != CborNoError) {
+            LOG(E, "Failed to copy signature or it's not a byte string.");
+            break;
+        }
+        LOG(D, "Extracted signature, size: %d", signature.size());
+
+        // --- Start Parsing the inner 'data' CBOR payload ---
+        std::vector<uint8_t> deviceKeyX, deviceKeyY;
+        
+        // The 'data' payload is a single CBOR item: a byte string tagged with 24.
+        CborParser intermediate_parser;
+        CborValue tagged_bstr_val;
+        std::vector<uint8_t> final_payload;
+
+        err = cbor_parser_init(data.data(), data.size(), 0, &intermediate_parser, &tagged_bstr_val);
+        if (err != CborNoError) { LOG(E, "Failed to init parser for intermediate payload."); break; }
+
+        CborTag tag;
+        err = cbor_value_get_tag(&tagged_bstr_val, &tag);
+        if (err != CborNoError || tag != 24) { LOG(E, "Payload is not a byte string tagged with 24."); break; }
+
+        err = cbor_value_advance(&tagged_bstr_val);
+        if (err != CborNoError) { LOG(E, "Failed to advance parser past the tag."); break; }
+
+        if (copy_byte_string(&tagged_bstr_val, final_payload) != CborNoError) {
+            LOG(E, "Failed to copy final payload from tagged byte string.");
+            break;
+        }
+
+        CborParser inner_parser;
+        CborValue inner_root, device_key_info, device_key_map, key_map_iterator;
+        
+        err = cbor_parser_init(final_payload.data(), final_payload.size(), 0, &inner_parser, &inner_root);
+        if (err != CborNoError || !cbor_value_is_map(&inner_root)) { LOG(E, "Final inner payload is not a valid CBOR map."); break; }
+
+        err = cbor_value_map_find_value(&inner_root, "deviceKeyInfo", &device_key_info);
+        if (err != CborNoError || !cbor_value_is_map(&device_key_info)) { LOG(E, "Could not find 'deviceKeyInfo' map in inner payload."); break; }
+        
+        err = cbor_value_map_find_value(&device_key_info, "deviceKey", &device_key_map);
+        if (err != CborNoError || !cbor_value_is_map(&device_key_map)) { LOG(E, "Could not find 'deviceKey' map in inner payload."); break; }
+        LOG(V, "Found 'deviceKey' map, parsing keys...");
+
+        err = cbor_value_enter_container(&device_key_map, &key_map_iterator);
+        if (err != CborNoError) { LOG(E, "Failed to enter 'deviceKey' container."); break; }
+
+        while (!cbor_value_at_end(&key_map_iterator)) {
+            if (cbor_value_is_integer(&key_map_iterator)) {
+                int64_t key;
+                cbor_value_get_int64(&key_map_iterator, &key);
+                err = cbor_value_advance(&key_map_iterator);
+                if (err != CborNoError) { LOG(E, "Failed to advance to value in deviceKey map."); break; }
+
+                if (key == -2) { // deviceKeyX
+                    if (copy_byte_string(&key_map_iterator, deviceKeyX) != CborNoError) { err = CborErrorInternalError; LOG(E, "Failed to copy deviceKeyX."); break; }
+                } else if (key == -3) { // deviceKeyY
+                    if (copy_byte_string(&key_map_iterator, deviceKeyY) != CborNoError) { err = CborErrorInternalError; LOG(E, "Failed to copy deviceKeyY."); break; }
+                }
+            }
+            if (cbor_value_at_end(&key_map_iterator)) break;
+            err = cbor_value_advance(&key_map_iterator); // move past value to next key
+            if (err != CborNoError) { LOG(E, "Failed to advance to next key in deviceKey map."); break; }
+        }
+        if (err != CborNoError) break;
+
+        err = cbor_value_leave_container(&device_key_map, &key_map_iterator);
+        if (err != CborNoError) { LOG(E, "Failed to leave deviceKey container."); break; }
+
+        if (deviceKeyX.empty() || deviceKeyY.empty()) {
+            LOG(E, "Parsing finished but deviceKeyX or deviceKeyY is missing.");
+            break;
+        }
+        LOG(D, "Extracted deviceKeyX (size: %d) and deviceKeyY (size: %d)", deviceKeyX.size(), deviceKeyY.size());
+
+        devicePubKey.push_back(0x04);
+        devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyX.begin()), std::make_move_iterator(deviceKeyX.end()));
+        devicePubKey.insert(devicePubKey.end(), std::make_move_iterator(deviceKeyY.begin()), std::make_move_iterator(deviceKeyY.end()));
+        
+        // --- Verification Logic ---
+        for (auto &&issuer : issuers) {
+          if (std::equal(issuer.issuer_id.begin(), issuer.issuer_id.end(), issuerId.begin())) {
+            LOG(D, "Found matching Issuer: %s", red_log::bufToHexString(issuer.issuer_id.data(), issuer.issuer_id.size()).c_str());
+            foundIssuer = &issuer;
+          }
+        }
+
+        if (foundIssuer != nullptr) {
+          CborEncoder package;
+          std::vector<uint8_t> packageBuf(strlen("Signature1") + protectedHeaders.size() + data.size() + 16); // Increased buffer margin
+          cbor_encoder_init(&package, packageBuf.data(), packageBuf.size(), 0);
+          CborEncoder packageArray;
+          cbor_encoder_create_array(&package, &packageArray, 4);
+          cbor_encode_text_stringz(&packageArray, "Signature1");
+          cbor_encode_byte_string(&packageArray, protectedHeaders.data(), protectedHeaders.size());
+          cbor_encode_byte_string(&packageArray, {}, 0); // external_aad
+          cbor_encode_byte_string(&packageArray, data.data(), data.size());
+          cbor_encoder_close_container(&package, &packageArray);
+          size_t package_size = cbor_encoder_get_buffer_size(&package, packageBuf.data());
+          
+          LOG(D, "Verifying signature against package of size %d", package_size);
+          LOG(V, "SIGNED PACKAGE: %s", red_log::bufToHexString(packageBuf.data(), package_size).c_str());
+
+          int res = crypto_sign_ed25519_verify_detached(signature.data(), packageBuf.data(), package_size, foundIssuer->issuer_pk.data());
+          if (res == 0) {
+            LOG(D, "Attestation signature verification successful!");
+            return std::make_tuple(foundIssuer, devicePubKey);
+          }
+          LOG(E, "Failed to verify attestation signature! Result code: %d", res);
+        } else {
+            LOG(E, "No matching issuer found for issuerId: %s", red_log::bufToHexString(issuerId.data(), issuerId.size()).c_str());
+        }
+
+    } while(0);
+
+    LOG(E, "Attestation verification failed. Returning empty result.");
+    return std::make_tuple(nullptr, std::vector<uint8_t>());
 }
 
 std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attest()

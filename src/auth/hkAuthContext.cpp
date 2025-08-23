@@ -1,5 +1,6 @@
 #include <hkAuthContext.h>
 #include "CommonCryptoUtils.h"
+#include "HomeKey.h"
 #include "hkFastAuth.h"
 #include "hkStdAuth.h"
 #include "hkAttestationAuth.h"
@@ -117,7 +118,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       }
       if (std::get<4>(stdAuth) == kFlowNext || hkFlow == kFlowATTESTATION) {
         auto attestation = HKAttestationAuth(readerData.issuers, std::get<2>(stdAuth), nfc).attest();
-        if ((flowUsed = std::get<2>(attestation)) == kFlowATTESTATION) {
+        if ((flowUsed = std::get<KeyFlow>(attestation)) == kFlowATTESTATION) {
           hkEndpoint_t endpoint;
           foundIssuer = std::get<0>(attestation);
           std::vector<uint8_t> devicePubKey = std::get<1>(attestation);
