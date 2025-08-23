@@ -42,14 +42,14 @@ namespace CommonCryptoUtils
     int mpi_read = mbedtls_mpi_read_binary(&reader_ephemeral_private_key, key1.data(), key1.size());
 
     if(mpi_read != 0){
-      LOG(E, "mpi_read - %s", mbedtls_high_level_strerr(mpi_read));
+      LOG(E, "mpi_read - %d", mpi_read);
       return;
     }
 
     // Set the endpoint's ephemeral public key
     int ecp_read = mbedtls_ecp_point_read_binary(&grp, &endpoint_ephemeral_public_key, key2.data(), key2.size());
     if(ecp_read != 0){
-      LOG(E, "ecp_read - %s", mbedtls_high_level_strerr(ecp_read));
+      LOG(E, "ecp_read - %d", ecp_read);
       return;
     }
 
@@ -57,13 +57,13 @@ namespace CommonCryptoUtils
     int ecdh_compute_shared = mbedtls_ecdh_compute_shared(&grp, &shared_key, &endpoint_ephemeral_public_key, &reader_ephemeral_private_key,
                                 esp_rng, NULL);
     if(ecdh_compute_shared != 0){
-      LOG(E, "ecdh_compute_shared - %s", mbedtls_high_level_strerr(ecdh_compute_shared));
+      LOG(E, "ecdh_compute_shared - %d", ecdh_compute_shared);
       return;
     }
 
     int mpi_write = mbedtls_mpi_write_binary(&shared_key, outBuf, oLen);
     if(mpi_write != 0){
-      LOG(E, "mpi_write - %s", mbedtls_high_level_strerr(mpi_write));
+      LOG(E, "mpi_write - %d", mpi_write);
       return;
     }
 
@@ -87,22 +87,22 @@ namespace CommonCryptoUtils
     mbedtls_ecp_keypair_init(&ephemeral);
     int gen_key = mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, &ephemeral, esp_rng, NULL);
     if(gen_key != 0){
-      LOG(E, "gen_key - %s", mbedtls_high_level_strerr(gen_key));
+      LOG(E, "gen_key - %d", gen_key);
       return std::make_tuple(std::vector<uint8_t>(), std::vector<uint8_t>());
     }
     std::vector<uint8_t> bufPriv(mbedtls_mpi_size(&ephemeral.private_d));
     int mpi_write = mbedtls_mpi_write_binary(&ephemeral.private_d, bufPriv.data(), bufPriv.capacity());
     if(mpi_write != 0){
-      LOG(E, "mpi_write - %s", mbedtls_high_level_strerr(mpi_write));
+      LOG(E, "mpi_write - %d", mpi_write);
       return std::make_tuple(std::vector<uint8_t>(), std::vector<uint8_t>());
     }
-    std::vector<uint8_t> bufPub(MBEDTLS_ECP_MAX_BYTES);
+    std::vector<uint8_t> bufPub(MBEDTLS_ECP_MAX_PT_LEN);
     size_t olen = 0;
     int ecp_write = mbedtls_ecp_point_write_binary(&ephemeral.private_grp, &ephemeral.private_Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, bufPub.data(), bufPub.capacity());
     if(!ecp_write){
       LOG(D, "Ephemeral Key generated -- private: %s, public: %s", red_log::bufToHexString(bufPriv.data(), bufPriv.size()).c_str(), red_log::bufToHexString(bufPub.data(), bufPub.size()).c_str());
     } else{
-      LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
+      LOG(E, "ecp_write - %d", ecp_write);
       return std::make_tuple(std::vector<uint8_t>(), std::vector<uint8_t>());
     }
     bufPub.resize(olen);
@@ -129,12 +129,12 @@ namespace CommonCryptoUtils
     mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
     int ecp_read = mbedtls_ecp_point_read_binary(&grp, &point, pubKey.data(), pubKey.size());
     if(ecp_read != 0)
-      LOG(E, "ecp_read - %s", mbedtls_high_level_strerr(ecp_read));
+      LOG(E, "ecp_read - %d", ecp_read);
     size_t buffer_size_x = mbedtls_mpi_size(&point.private_X);
     std::vector<uint8_t> X(buffer_size_x);
     int ecp_write = mbedtls_mpi_write_binary(&point.private_X, X.data(), buffer_size_x);
     if(ecp_write != 0)
-      LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
+      LOG(E, "ecp_write - %d", ecp_write);
     LOG(V, "PublicKey: %s, X Coordinate: %s", red_log::bufToHexString(pubKey.data(), pubKey.size()).c_str(), red_log::bufToHexString(X.data(), X.size()).c_str());
     mbedtls_ecp_group_free(&grp);
     mbedtls_ecp_point_free(&point);
@@ -171,23 +171,23 @@ namespace CommonCryptoUtils
 
     int ecp_read = mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP256R1, &keypair, key, keyLen);
     if(ecp_read != 0){
-      LOG(E, "ecp_read - %s", mbedtls_high_level_strerr(ecp_read));
+      LOG(E, "ecp_read - %d", ecp_read);
       return std::vector<uint8_t>();
     }
     int ecdsa_sign = mbedtls_ecdsa_sign_det_ext(&keypair.private_grp, &sigMpi1, &sigMpi2, &keypair.private_d, hash, keyLen, MBEDTLS_MD_SHA256, esp_rng, NULL);
     if(ecdsa_sign != 0){
-      LOG(E, "ecdsa_sign - %s", mbedtls_high_level_strerr(ecdsa_sign));
+      LOG(E, "ecdsa_sign - %d", ecdsa_sign);
       return std::vector<uint8_t>();
     }
     std::vector<uint8_t> sigPoint(mbedtls_mpi_size(&sigMpi1) + mbedtls_mpi_size(&sigMpi2));
     int ecp_write_1 = mbedtls_mpi_write_binary(&sigMpi1, sigPoint.data(), mbedtls_mpi_size(&sigMpi1));
     if(ecp_write_1 != 0){
-      LOG(E, "ecp_write_1 - %s", mbedtls_high_level_strerr(ecp_write_1));
+      LOG(E, "ecp_write_1 - %d", ecp_write_1);
       return std::vector<uint8_t>();
     }
     int ecp_write_2 = mbedtls_mpi_write_binary(&sigMpi2, sigPoint.data() + mbedtls_mpi_size(&sigMpi1), mbedtls_mpi_size(&sigMpi2));
     if(ecp_write_2 != 0){
-      LOG(E, "ecp_write_2 - %s", mbedtls_high_level_strerr(ecp_write_2));
+      LOG(E, "ecp_write_2 - %d", ecp_write_2);
       return std::vector<uint8_t>();
     }
     mbedtls_ecp_keypair_free(&keypair);

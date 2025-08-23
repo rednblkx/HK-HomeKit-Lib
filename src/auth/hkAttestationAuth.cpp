@@ -1,5 +1,4 @@
 #include "hkAttestationAuth.h"
-#include "esp_system.h"
 #include "ndef.h"
 #include "simple_tlv.h"
 #include "TLV8.hpp"
@@ -39,14 +38,12 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
   cbor_encoder_close_container(&devEng, &devEngArray);
   size_t devSize = cbor_encoder_get_buffer_size(&devEng, devEngCbor);
   LOG(D, "Device Engagement CBOR");
-  // ESP_LOG_BUFFER_HEX_LEVEL(TAG, devEngCbor, devSize, ESP_LOG_VERBOSE);
   CborEncoder root;
   cbor_encoder_init(&root, buf, sizeof(buf), 0);
   cbor_encode_tag(&root, CborEncodedCborTag);
   cbor_encode_byte_string(&root, devEngCbor, devSize);
   size_t rootSize = cbor_encoder_get_buffer_size(&root, buf);
   LOG(D, "NDEF CBOR");
-  // ESP_LOG_BUFFER_HEX_LEVEL(TAG, buf, rootSize, ESP_LOG_VERBOSE);
 
   LOG(D, "CBOR MATERIAL DATA: %s", red_log::bufToHexString(buf, rootSize).c_str());
 
@@ -55,7 +52,7 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
 
   if (shaRet != 0)
   {
-      LOG(E, "SHA256 Failed - %s", mbedtls_high_level_strerr(shaRet));
+      LOG(E, "SHA256 Failed - %d", shaRet);
       return std::vector<unsigned char>();
   }
 
@@ -68,14 +65,12 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelo
 {
   std::vector<uint8_t> ctrlFlow = {0x80, 0x3c, 0x40, 0xa0};
   std::vector<uint8_t> ctrlFlowRes;
-  // uint16_t ctrlFlowResLen = 8;
   nfc(ctrlFlow, ctrlFlowRes, false);
   LOG(D, "CTRL FLOW RES LENGTH: %d, DATA: %s", ctrlFlowRes.size(), red_log::bufToHexString(ctrlFlowRes.data(), ctrlFlowRes.size()).c_str());
   if (ctrlFlowRes[0] == 0x90 && ctrlFlowRes[1] == 0x0)
   { // cla=0x00; ins=0xa4; p1=0x04; p2=0x00; lc=0x07(7); data=a0000008580102; le=0x00
     std::vector<uint8_t> data = {0x00, 0xA4, 0x04, 0x00, 0x07, 0xA0, 0x00, 0x00, 0x08, 0x58, 0x01, 0x02, 0x0};
     std::vector<uint8_t> response;
-    // uint16_t responseLength = 4;
     nfc(data, response, false);
     LOG(D, "ENV1.2 RES LENGTH: %d, DATA: %s", response.size(), red_log::bufToHexString(response.data(), response.size()).c_str());
     if (response[0] == 0x90 && response[1] == 0x0){
@@ -90,12 +85,10 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelo
       auto envelope1Tlv = simple_tlv(0x53, ndefMessage.data(), ndefMessage.size(), NULL, NULL);
       std::vector<uint8_t> env1Apdu = {0x00, 0xc3, 0x00, 0x01, static_cast<uint8_t>(envelope1Tlv.size())};
       env1Apdu.reserve(envelope1Tlv.size() + 6);
-      // memcpy(env1Apdu.data() + 5, envelope1Tlv.data(), envelope1Tlv.size());
       env1Apdu.insert(env1Apdu.end(), envelope1Tlv.begin(), envelope1Tlv.end());
       env1Apdu.push_back(0x0);
       LOG(D, "APDU CMD LENGTH: %d, DATA: %s", env1Apdu.size(), red_log::bufToHexString(env1Apdu.data(), env1Apdu.size()).c_str());
       std::vector<uint8_t> env1Res;
-      // uint16_t env1ResLen = 128;
       nfc(env1Apdu, env1Res, false);
       LOG(D, "APDU RES LENGTH: %d, DATA: %s", env1Res.size(), red_log::bufToHexString(env1Res.data(), env1Res.size()).c_str());
       if (env1Res[env1Res.size() - 2] == 0x90 && env1Res[env1Res.size() - 1] == 0x0){
@@ -175,7 +168,7 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
       getMore = false;
       nfc(getData, env2Res, false);
       attestation_package.insert(attestation_package.end(), env2Res.begin(), env2Res.end());
-      LOG(D, "Data Length: %d - pkg length: %d - free heap size: %lu", env2Res.size(), attestation_package.size(), esp_get_free_heap_size());
+      LOG(D, "Data Length: %d - pkg length: %d", env2Res.size(), attestation_package.size());
       if(env2Res.size() >= 250 && (*(&env2Res.back() - 1) == 0x61 && (env2Res.back() == 0x0 || env2Res.back() >= 0xd0))){
         getMore = true;
         attestation_package.pop_back();

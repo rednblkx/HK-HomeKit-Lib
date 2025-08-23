@@ -41,12 +41,12 @@ ISO18013SecureContext::ISO18013SecureContext(const std::vector<uint8_t> &sharedS
     if(!ret1){
         this->readerKey.insert(this->readerKey.begin(), outReader.begin(), outReader.end());
     } else {
-        LOG(E, "Cannot derive READER Key - %s", mbedtls_high_level_strerr(ret1));
+        LOG(E, "Cannot derive READER Key - %d", ret1);
     }
     if(!ret2){
         this->endpointKey.insert(this->endpointKey.begin(), outEndpoint.begin(), outEndpoint.end());
     } else {
-        LOG(E, "Cannot derive Endpoint Key - %s", mbedtls_high_level_strerr(ret2));
+        LOG(E, "Cannot derive Endpoint Key - %d", ret2);
     }
 }
 
@@ -83,7 +83,7 @@ std::vector<uint8_t> ISO18013SecureContext::encryptMessageToEndpoint(const std::
 
     if (setKey != 0)
     {
-        LOG(E, "Cannot set key - %s", mbedtls_high_level_strerr(setKey));
+        LOG(E, "Cannot set key - %d", setKey);
         return std::vector<unsigned char>();
     }
 
@@ -96,7 +96,7 @@ std::vector<uint8_t> ISO18013SecureContext::encryptMessageToEndpoint(const std::
 
     if (enc != 0)
     {
-        LOG(E, "Cannot encrypt - %s", mbedtls_high_level_strerr(enc));
+        LOG(E, "Cannot encrypt - %d", enc);
         return std::vector<unsigned char>();
     }
 

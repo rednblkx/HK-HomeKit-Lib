@@ -92,7 +92,7 @@ int DigitalKeySecureContext::encrypt_aes_cbc(const unsigned char* key, unsigned 
     int crypt_cbc = mbedtls_aes_crypt_cbc(&aes_ctx, MBEDTLS_AES_ENCRYPT, length, iv, plaintext, ciphertext);
     mbedtls_aes_free(&aes_ctx);
     if(crypt_cbc != 0){
-        LOG(E, "crypt_cbc - %s", mbedtls_high_level_strerr(crypt_cbc));
+        LOG(E, "crypt_cbc - %d", crypt_cbc);
         return crypt_cbc;
     }
     return 0;
@@ -125,7 +125,7 @@ int DigitalKeySecureContext::decrypt_aes_cbc(const unsigned char* key, unsigned 
     int crypt_cbc = mbedtls_aes_crypt_cbc(&aes_ctx, MBEDTLS_AES_DECRYPT, length, iv, ciphertext, plaintext);
     mbedtls_aes_free(&aes_ctx);
     if(crypt_cbc != 0){
-        LOG(E, "crypt_cbc - %s", mbedtls_high_level_strerr(crypt_cbc));
+        LOG(E, "crypt_cbc - %d", crypt_cbc);
         return crypt_cbc;
     }
     return 0;
@@ -153,7 +153,7 @@ int DigitalKeySecureContext::decrypt_aes_cbc(const unsigned char* key, unsigned 
 int DigitalKeySecureContext::aes_cmac(const unsigned char* key, const unsigned char* data, size_t data_size, unsigned char* mac) {
     int cmac = mbedtls_cipher_cmac(mbedtls_cipher_info_from_values(MBEDTLS_CIPHER_ID_AES, 128, MBEDTLS_MODE_ECB), key, 128, data, data_size, mac);
     if(cmac != 0){
-        LOG(E, "cmac - %s", mbedtls_high_level_strerr(cmac));
+        LOG(E, "cmac - %d", cmac);
         return cmac;
     }
     return 0;

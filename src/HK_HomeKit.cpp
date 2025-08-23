@@ -100,12 +100,12 @@ std::vector<uint8_t> HK_HomeKit::get_x(std::vector<uint8_t> &pubKey)
   mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
   int ecp_read = mbedtls_ecp_point_read_binary(&grp, &point, pubKey.data(), pubKey.size());
   if(ecp_read != 0)
-    LOG(E, "ecp_read - %s", mbedtls_high_level_strerr(ecp_read));
+    LOG(E, "ecp_read - %d", ecp_read);
   size_t buffer_size_x = mbedtls_mpi_size(&point.private_X);
   std::vector<uint8_t> X(buffer_size_x);
   int ecp_write = mbedtls_mpi_write_binary(&point.private_X, X.data(), buffer_size_x);
   if(ecp_write != 0)
-    LOG(E, "ecp_write - %s", mbedtls_high_level_strerr(ecp_write));
+    LOG(E, "ecp_write - %d", ecp_write);
   LOG(V, "PublicKey: %s, X Coordinate: %s", red_log::bufToHexString(pubKey.data(), pubKey.size()).c_str(), red_log::bufToHexString(X.data(), X.size()).c_str());
   mbedtls_ecp_group_free(&grp);
   mbedtls_ecp_point_free(&point);
@@ -119,15 +119,15 @@ std::vector<uint8_t> HK_HomeKit::getPublicKey(uint8_t *privKey, size_t len)
   int ecp_key = mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP256R1, &keypair, privKey, len);
   int ret = mbedtls_ecp_mul(&keypair.private_grp, &keypair.private_Q, &keypair.private_d, &keypair.private_grp.G, esp_rng, NULL);
   if(ecp_key != 0){
-    LOG(E, "ecp_write_1 - %s", mbedtls_high_level_strerr(ecp_key));
+    LOG(E, "ecp_write_1 - %d", ecp_key);
     return std::vector<uint8_t>();
   }
   if (ret != 0) {
-    LOG(E, "mbedtls_ecp_mul - %s", mbedtls_high_level_strerr(ret));
+    LOG(E, "mbedtls_ecp_mul - %d", ret);
     return std::vector<uint8_t>();
   }
     size_t olenPub = 0;
-  std::vector<uint8_t> readerPublicKey(MBEDTLS_ECP_MAX_BYTES);
+  std::vector<uint8_t> readerPublicKey(MBEDTLS_ECP_MAX_PT_LEN);
   mbedtls_ecp_point_write_binary(&keypair.private_grp, &keypair.private_Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olenPub, readerPublicKey.data(), readerPublicKey.capacity());
   readerPublicKey.resize(olenPub);
 
