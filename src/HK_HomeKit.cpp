@@ -7,6 +7,8 @@
 #include <esp_random.h>
 #include <mbedtls/error.h>
 #include <vector>
+#include "fmt/base.h"
+#include <fmt/ranges.h>
 
 HK_HomeKit::HK_HomeKit(readerData_t& readerData, const std::function<void(const readerData_t&)> &save_cb, const std::function<void()> &remove_key_cb, std::vector<uint8_t>& tlvData) : tlvData(tlvData), readerData(readerData), save_cb(save_cb), remove_key_cb(remove_key_cb) { }
 
@@ -28,11 +30,11 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
           TLV8 getResSub;
           getResSub.add(kReader_Res_Key_Identifier, readerData.reader_gid);
           std::vector<uint8_t> subTlv = getResSub.get();
-          LOG(D, "SUB-TLV LENGTH:  %d, DATA: %s", sizeof(subTlv), red_log::bufToHexString(subTlv.data(), subTlv.size()).c_str());
+          LOG(D, "SUB-TLV LENGTH:  %d, DATA: %s", sizeof(subTlv), fmt::format("{:02X}", fmt::join(subTlv, "")).c_str());
           TLV8 getResTlv;
           getResTlv.add(kReader_Res_Reader_Key_Response, subTlv);
           std::vector<uint8_t> tlvRes = getResTlv.get();
-          LOG(D, "TLV LENGTH: %d, DATA: %s", sizeof(tlvRes), red_log::bufToHexString(tlvRes.data(), tlvRes.size()).c_str());
+          LOG(D, "TLV LENGTH: %d, DATA: %s", sizeof(tlvRes), fmt::format("{:02X}", fmt::join(tlvRes, "")).c_str());
           return tlvRes;
         }
         return std::vector<uint8_t>{ 0x01, 0x01, 0x01, 0x7, 0x0 };
@@ -48,7 +50,7 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
         TLV8 rkResSub;
         rkResSub.add(kReader_Res_Status, 0);
         std::vector<uint8_t> rkSubTlv = rkResSub.get();
-        LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", sizeof(rkSubTlv), red_log::bufToHexString(rkSubTlv.data(), rkSubTlv.size()).c_str());
+        LOG(D, "SUB-TLV LENGTH: %d, DATA: %s", sizeof(rkSubTlv), fmt::format("{:02X}", fmt::join(rkSubTlv, "")).c_str());
         TLV8 rkResTlv;
         rkResTlv.add(kReader_Res_Reader_Key_Response, rkSubTlv);
         std::vector<uint8_t> rkRes = rkResTlv.get();
@@ -106,7 +108,7 @@ std::vector<uint8_t> HK_HomeKit::get_x(std::vector<uint8_t> &pubKey)
   int ecp_write = mbedtls_mpi_write_binary(&point.private_X, X.data(), buffer_size_x);
   if(ecp_write != 0)
     LOG(E, "ecp_write - %d", ecp_write);
-  LOG(V, "PublicKey: %s, X Coordinate: %s", red_log::bufToHexString(pubKey.data(), pubKey.size()).c_str(), red_log::bufToHexString(X.data(), X.size()).c_str());
+  LOG(V, "PublicKey: %s, X Coordinate: %s", fmt::format("{:02X}", fmt::join(pubKey, "")).c_str(), fmt::format("{:02X}", fmt::join(X, "")).c_str());
   mbedtls_ecp_group_free(&grp);
   mbedtls_ecp_point_free(&point);
   return X;
@@ -157,7 +159,7 @@ std::vector<uint8_t> HK_HomeKit::getHashIdentifier(const std::vector<uint8_t>& k
 }
 
 std::tuple<std::vector<uint8_t>, int> HK_HomeKit::provision_device_cred(std::vector<uint8_t> buf) {
-  LOG(D, "DCReq Buffer length: %d, data: %s", buf.size(), red_log::bufToHexString(buf.data(), buf.size()).c_str());
+  LOG(D, "DCReq Buffer length: %d, data: %s", buf.size(), fmt::format("{:02X}", fmt::join(buf, "")).c_str());
   TLV8 dcrTlv;
   dcrTlv.parse(buf.data(), buf.size());
   hkIssuer_t* foundIssuer = nullptr;
@@ -166,7 +168,7 @@ std::tuple<std::vector<uint8_t>, int> HK_HomeKit::provision_device_cred(std::vec
   if (issuerIdentifier.size() > 0) {
     for (auto& issuer : readerData.issuers) {
       if (std::equal(issuer.issuer_id.begin(), issuer.issuer_id.end(), issuerIdentifier.begin())) {
-        LOG(D, "Found issuer - ID: %s", red_log::bufToHexString(issuer.issuer_id.data(), 8).c_str());
+        LOG(D, "Found issuer - ID: %s", fmt::format("{:02X}", fmt::join(issuer.issuer_id, "")).c_str());
         foundIssuer = &issuer;
       }
     }
@@ -178,12 +180,12 @@ std::tuple<std::vector<uint8_t>, int> HK_HomeKit::provision_device_cred(std::vec
       std::vector<uint8_t> endpointId = getHashIdentifier(devicePubKey, false);
       for (auto& endpoint : foundIssuer->endpoints) {
         if (std::equal(endpoint.endpoint_id.begin(), endpoint.endpoint_id.end(), endpointId.begin())) {
-          LOG(D, "Found endpoint - ID: %s", red_log::bufToHexString(endpoint.endpoint_id.data(), 6).c_str());
+          LOG(D, "Found endpoint - ID: %s", fmt::format("{:02X}", fmt::join(endpoint.endpoint_id, "")).c_str());
           foundEndpoint = &endpoint;
         }
       }
       if (foundEndpoint == 0) {
-        LOG(D, "Adding new endpoint - ID: %s , PublicKey: %s", red_log::bufToHexString(endpointId.data(), 6).c_str(), red_log::bufToHexString(devicePubKey.data(), devicePubKey.size()).c_str());
+        LOG(D, "Adding new endpoint - ID: %s , PublicKey: %s", fmt::format("{:02X}", fmt::join(endpointId, "")).c_str(), fmt::format("{:02X}", fmt::join(devicePubKey, "")).c_str());
         hkEndpoint_t endpoint;
         std::vector<uint8_t> x_coordinate = get_x(devicePubKey);
         tlv_it tlvKeyType = dcrTlv.find(kDevice_Req_Key_Type);
@@ -200,13 +202,13 @@ std::tuple<std::vector<uint8_t>, int> HK_HomeKit::provision_device_cred(std::vec
         return std::make_tuple(foundIssuer->issuer_id, SUCCESS);
       }
       else {
-        LOG(D, "Endpoint already exists - ID: %s", red_log::bufToHexString(foundEndpoint->endpoint_id.data(), 6).c_str());
+        LOG(D, "Endpoint already exists - ID: %s", fmt::format("{:02X}", fmt::join(foundEndpoint->endpoint_id, "")).c_str());
         save_cb(readerData);
         return std::make_tuple(issuerIdentifier, DUPLICATE);
       }
     }
     else {
-      LOG(D, "Issuer does not exist - ID: %s", red_log::bufToHexString(issuerIdentifier.data(), 8).c_str());
+      LOG(D, "Issuer does not exist - ID: %s", fmt::format("{:02X}", fmt::join(issuerIdentifier, "")).c_str());
       save_cb(readerData);
       return std::make_tuple(issuerIdentifier, DOES_NOT_EXIST);
     }
@@ -215,7 +217,7 @@ std::tuple<std::vector<uint8_t>, int> HK_HomeKit::provision_device_cred(std::vec
 }
 
 int HK_HomeKit::set_reader_key(std::vector<uint8_t>& buf) {
-  LOG(D, "Setting reader key(%d): %s", buf.size(), red_log::bufToHexString(buf.data(), buf.size()).c_str());
+  LOG(D, "Setting reader key(%d): %s", buf.size(), fmt::format("{:02X}", fmt::join(buf, "")).c_str());
   TLV8 rkrTLv;
   rkrTLv.parse(buf.data(), buf.size());
   tlv_it tlvReaderKey = rkrTLv.find(kReader_Req_Reader_Private_Key);
@@ -225,18 +227,18 @@ int HK_HomeKit::set_reader_key(std::vector<uint8_t>& buf) {
   if(tlvUniqueId == rkrTLv.end()){ LOG(D, "kReader_Req_Identifier not found"); return -1;}
   std::vector<uint8_t> uniqueIdentifier = tlvUniqueId->value;
   if (readerKey.size() > 0 && uniqueIdentifier.size() > 0) {
-    LOG(D, "Reader Key: %s", red_log::bufToHexString(readerKey.data(), readerKey.size()).c_str());
-    LOG(D, "UniqueIdentifier: %s", red_log::bufToHexString(uniqueIdentifier.data(), uniqueIdentifier.size()).c_str());
+    LOG(D, "Reader Key: %s", fmt::format("{:02X}", fmt::join(readerKey, "")).c_str());
+    LOG(D, "UniqueIdentifier: %s", fmt::format("{:02X}", fmt::join(uniqueIdentifier, "")).c_str());
     std::vector<uint8_t> pubKey = getPublicKey(readerKey.data(), readerKey.size());
-    LOG(D, "Got reader public key: %s", red_log::bufToHexString(pubKey.data(), pubKey.size()).c_str());
+    LOG(D, "Got reader public key: %s", fmt::format("{:02X}", fmt::join(pubKey, "")).c_str());
     std::vector<uint8_t> x_coordinate = get_x(pubKey);
-    LOG(D, "Got X coordinate: %s", red_log::bufToHexString(x_coordinate.data(), x_coordinate.size()).c_str());
+    LOG(D, "Got X coordinate: %s", fmt::format("{:02X}", fmt::join(x_coordinate, "")).c_str());
     readerData.reader_pk_x = x_coordinate;
     readerData.reader_pk = pubKey;
     readerData.reader_sk = readerKey;
     readerData.reader_id = uniqueIdentifier;
     std::vector<uint8_t> readeridentifier = getHashIdentifier(readerData.reader_sk, true);
-    LOG(D, "Reader GroupIdentifier: %s", red_log::bufToHexString(readeridentifier.data(), 8).c_str());
+    LOG(D, "Reader GroupIdentifier: %s", fmt::format("{:02X}", fmt::join(readeridentifier, "")).c_str());
     readerData.reader_gid = std::vector<uint8_t>{readeridentifier.begin(), readeridentifier.begin() + 8};
     save_cb(readerData);
   }

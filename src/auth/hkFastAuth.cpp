@@ -1,4 +1,5 @@
 #include "hkFastAuth.h"
+#include "fmt/ranges.h"
 #include "logging.h"
 #include <mbedtls/hkdf.h>
 #include <vector>
@@ -39,7 +40,7 @@ void HKFastAuth::Auth0_keying_material(const char *context, const std::vector<ui
   dataMaterial.push_back(flags[0]);
   dataMaterial.push_back(flags[1]);
   dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(endpointEphX.begin()), std::make_move_iterator(endpointEphX.end()));
-  LOG(D, "Auth0 HKDF Material: %s", red_log::bufToHexString(dataMaterial.data(), dataMaterial.size()).c_str());
+  LOG(D, "Auth0 HKDF Material: %s", fmt::format("{:02X}", fmt::join(dataMaterial, "")).c_str());
   int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial.data(), keyingMaterial.size(), dataMaterial.data(), dataMaterial.size(), out, outLen);
   LOG(V, "HKDF Status: %d", ret);
 }
@@ -58,17 +59,17 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *> HKFastAuth::find_endpoint_by_cryptogram
   hkIssuer_t *foundIssuer = nullptr;
   for (auto &&issuer : issuers)
   {
-    LOG(V, "Issuer: %s, Endpoints: %d", red_log::bufToHexString(issuer.issuer_id.data(), issuer.issuer_id.size()).c_str(), issuer.endpoints.size());
+    LOG(V, "Issuer: %s, Endpoints: %d", fmt::format("{:02X}", fmt::join(issuer.issuer_id, "")).c_str(), issuer.endpoints.size());
     for (auto &&endpoint : issuer.endpoints)
     {
       if(endpoint.endpoint_prst_k.size() == 0) continue;
-      LOG(V, "Endpoint: %s, Persistent Key: %s", red_log::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size()).c_str(), red_log::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
+      LOG(V, "Endpoint: %s, Persistent Key: %s", fmt::format("{:02X}", fmt::join(endpoint.endpoint_id, "")).c_str(), fmt::format("{:02X}", fmt::join(endpoint.endpoint_prst_k, "")).c_str());
       std::vector<uint8_t> hkdf(58);
       Auth0_keying_material("VolatileFast", endpoint.endpoint_pk_x, endpoint.endpoint_prst_k, hkdf.data(), hkdf.size());
-      LOG(V, "HKDF Derived Key: %s", red_log::bufToHexString(hkdf.data(), hkdf.size()).c_str());
+      LOG(V, "HKDF Derived Key: %s", fmt::format("{:02X}", fmt::join(hkdf, "")).c_str());
       if (!memcmp(hkdf.data(), cryptogram.data(), 16))
       {
-        LOG(D, "Endpoint %s matches cryptogram", red_log::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size()).c_str());
+        LOG(D, "Endpoint %s matches cryptogram", fmt::format("{:02X}", fmt::join(endpoint.endpoint_id, "")).c_str());
         foundIssuer = &issuer;
         foundEndpoint = &endpoint;
         break;
@@ -101,7 +102,7 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, KeyFlow> HKFastAuth::attest(std::vector
   auto foundData = find_endpoint_by_cryptogram(encryptedMessage);
   if (std::get<1>(foundData) != nullptr)
   {
-    LOG(D, "Endpoint %s Authenticated via FAST Flow", red_log::bufToHexString(std::get<1>(foundData)->endpoint_id.data(), std::get<1>(foundData)->endpoint_id.size()).c_str());
+    LOG(D, "Endpoint %s Authenticated via FAST Flow", fmt::format("{:02X}", fmt::join(std::get<1>(foundData)->endpoint_id, "")).c_str());
     return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), kFlowFAST);
   }
   LOG(W, "FAST Flow failed! Moving to STANDARD Flow!");

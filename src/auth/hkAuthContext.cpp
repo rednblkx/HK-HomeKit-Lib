@@ -1,6 +1,7 @@
 #include <hkAuthContext.h>
 #include "CommonCryptoUtils.h"
 #include "HomeKey.h"
+#include "fmt/ranges.h"
 #include "hkFastAuth.h"
 #include "hkStdAuth.h"
 #include "hkAttestationAuth.h"
@@ -41,13 +42,13 @@ HKAuthenticationContext::HKAuthenticationContext(const std::function<bool(std::v
 }
 
 std::vector<uint8_t> HKAuthenticationContext::getHashIdentifier(const std::vector<uint8_t>& key) {
-  LOG(V, "Key: %s, Length: %d", red_log::bufToHexString(key.data(), key.size()).c_str(), key.size());
+  LOG(V, "Key: %s, Length: %d", fmt::format("{:02X}", fmt::join(key, "")).c_str(), key.size());
   std::vector<unsigned char> hashable;
   hashable.insert(hashable.end(), key.begin(), key.end());
-  LOG(V, "Hashable: %s", red_log::bufToHexString(&hashable.front(), hashable.size()).c_str());
+  LOG(V, "Hashable: %s", fmt::format("{:02X}", fmt::join(hashable, "")).c_str());
   std::vector<uint8_t> hash(32);
   mbedtls_sha1(&hashable.front(), hashable.size(), hash.data());
-  LOG(V, "HashIdentifier: %s", red_log::bufToHexString(hash.data(), 32).c_str());
+  LOG(V, "HashIdentifier: %s", fmt::format("{:02X}", fmt::join(hash, "")).c_str());
   return hash;
 }
 
@@ -78,10 +79,10 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
   std::vector<uint8_t> apdu{0x80, 0x80, 0x01, 0x01, (uint8_t)len};
   apdu.insert(apdu.begin() + 5, fastTlv.begin(), fastTlv.end());
   std::vector<uint8_t> response;
-  LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), red_log::bufToHexString(apdu.data(), apdu.size()).c_str());
+  LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), fmt::format("{:02X}", fmt::join(apdu, "")).c_str());
   nfc(apdu, response, false);
   ESP_LOG_BUFFER_HEX_LEVEL(TAG, response.data(), response.size(), ESP_LOG_VERBOSE);
-  LOG(D, "Auth0 Response Length: %d, DATA: %s", response.size(), red_log::bufToHexString(response.data(), response.size()).c_str());
+  LOG(D, "Auth0 Response Length: %d, DATA: %s", response.size(), fmt::format("{:02X}", fmt::join(response, "")).c_str());
   if (response.size() > 64 && response[0] == 0x86) {
     TLV8 Auth0Res;
     Auth0Res.parse(response.data(), response.size());
@@ -100,7 +101,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       {
         foundIssuer = std::get<0>(fastAuth);
         foundEndpoint = std::get<1>(fastAuth);
-        LOG(D, "Endpoint %s Authenticated via FAST Flow", red_log::bufToHexString(foundEndpoint->endpoint_id.data(), foundEndpoint->endpoint_id.size(), true).c_str());
+        LOG(D, "Endpoint %s Authenticated via FAST Flow", fmt::format("{:02X}", fmt::join(foundEndpoint->endpoint_id, "")).c_str());
       }
     }
     if(foundEndpoint == nullptr){
@@ -110,10 +111,10 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
         foundEndpoint = std::get<1>(stdAuth);
         if ((flowUsed = std::get<4>(stdAuth)) == kFlowSTANDARD)
         {
-          LOG(D, "Endpoint %s Authenticated via STANDARD Flow", red_log::bufToHexString(foundEndpoint->endpoint_id.data(), foundEndpoint->endpoint_id.size(), true).c_str());
+          LOG(D, "Endpoint %s Authenticated via STANDARD Flow", fmt::format("{:02X}", fmt::join(foundEndpoint->endpoint_id, "")).c_str());
           persistentKey = std::get<3>(stdAuth);
           foundEndpoint->endpoint_prst_k = persistentKey;
-          LOG(V, "New Persistent Key: %s", red_log::bufToHexString(foundEndpoint->endpoint_prst_k.data(), foundEndpoint->endpoint_prst_k.size()).c_str());
+          LOG(V, "New Persistent Key: %s", fmt::format("{:02X}", fmt::join(foundEndpoint->endpoint_prst_k, "")).c_str());
         }
       }
       if (std::get<4>(stdAuth) == kFlowNext || hkFlow == kFlowATTESTATION) {
@@ -128,10 +129,10 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
           endpoint.endpoint_id = std::vector<uint8_t>{eId.begin(), eId.begin() + 6};
           endpoint.endpoint_pk = devicePubKey;
           LOG(I, "ATTESTATION Flow complete, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
-          LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", red_log::bufToHexString(endpoint.endpoint_id.data(), endpoint.endpoint_id.size(), true).c_str());
+          LOG(D, "Endpoint %s Authenticated via ATTESTATION Flow", fmt::format("{:02X}", fmt::join(endpoint.endpoint_id, "")).c_str());
           persistentKey = std::get<3>(stdAuth);
           endpoint.endpoint_prst_k = persistentKey;
-          LOG(V, "New Persistent Key: %s", red_log::bufToHexString(endpoint.endpoint_prst_k.data(), endpoint.endpoint_prst_k.size()).c_str());
+          LOG(V, "New Persistent Key: %s", fmt::format("{:02X}", fmt::join(endpoint.endpoint_prst_k, "")).c_str());
           foundEndpoint = &(*foundIssuer->endpoints.emplace(foundIssuer->endpoints.end(),endpoint));
         }
       }
@@ -144,14 +145,14 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       if (flowUsed < kFlowATTESTATION)
       {
         cmdFlowStatus = commandFlow(kCmdFlowSuccess);
-        LOG(D, "CONTROL FLOW RESPONSE: %s, Length: %d", red_log::bufToHexString(cmdFlowStatus.data(), cmdFlowStatus.size()).c_str(), cmdFlowStatus.size());
+        LOG(D, "CONTROL FLOW RESPONSE: %s, Length: %d", fmt::format("{:02X}", fmt::join(cmdFlowStatus, "")).c_str(), cmdFlowStatus.size());
       }
       if (flowUsed == kFlowATTESTATION || cmdFlowStatus.data()[0] == 0x90)
       {
         LOG(I, "Endpoint authenticated, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
         return std::make_tuple(foundIssuer->issuer_id, foundEndpoint->endpoint_id, flowUsed);
       } else {
-        LOG(E, "Control Flow Response not 0x90!, %s", red_log::bufToHexString(cmdFlowStatus.data(), cmdFlowStatus.size()).c_str());
+        LOG(E, "Control Flow Response not 0x90!, %s", fmt::format("{:02X}", fmt::join(cmdFlowStatus, "")).c_str());
         return std::make_tuple(foundIssuer->issuer_id, foundEndpoint->endpoint_id, kFlowFailed);
       }
     } else commandFlow(kCmdFlowFailed);
@@ -173,7 +174,7 @@ std::vector<uint8_t> HKAuthenticationContext::commandFlow(CommandFlowStatus stat
 {
   std::vector<uint8_t> apdu = {0x80, 0x3c, static_cast<uint8_t>(status), status == kCmdFlowAttestation ? (uint8_t)0xa0 : (uint8_t)0x0};
   std::vector<uint8_t> cmdFlowRes(3);
-  LOG(D, "APDU: %s, Length: %d", red_log::bufToHexString(apdu.data(), apdu.size()).c_str(), apdu.size());
+  LOG(D, "APDU: %s, Length: %d", fmt::format("{:02X}", fmt::join(apdu, "")).c_str(), apdu.size());
   nfc(apdu, cmdFlowRes, false);
   return cmdFlowRes;
 }
