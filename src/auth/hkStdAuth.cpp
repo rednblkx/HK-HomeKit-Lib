@@ -1,14 +1,18 @@
 #include "hkStdAuth.h"
 #include "CommonCryptoUtils.h"
-#include "fmt/ranges.h"
+#include "DigitalKeySecureContext.h"
+#include "HomeKey.h"
+#include "format.hpp"
 #include "x963kdf.h"
 #include "logging.h"
 #include "simple_tlv.h"
+#include <iterator>
 #include <mbedtls/hkdf.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/bignum.h>
 #include <TLV8.hpp>
 #include <mbedtls/ecdsa.h>
+#include <tuple>
 #include <vector>
 
 /**
@@ -89,15 +93,15 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, DigitalKeySecureContext, std::vector<ui
   // int deviceContext = 1317567308;
   uint8_t deviceCtx[4]{0x4e, 0x88, 0x7b, 0x4c};
 
-  std::vector<uint8_t> stdTlv(16 + endpointEphX.size() + readerEphX.size() + 30);
-  size_t len = 0;
-  simple_tlv(0x4D, readerIdentifier.data(), 16, stdTlv.data(), &len);
-  simple_tlv(0x86, endpointEphX.data(), endpointEphX.size(), stdTlv.data() + len, &len);
-  simple_tlv(0x87, readerEphX.data(), readerEphX.size(), stdTlv.data() + len, &len);
-  simple_tlv(0x4C, transactionIdentifier.data(), 16, stdTlv.data() + len, &len);
-  simple_tlv(0x93, readerCtx, 4, stdTlv.data() + len, &len);
-  std::vector<uint8_t> sigPoint = CommonCryptoUtils::signSharedInfo(stdTlv.data(), len, reader_private_key.data(), reader_private_key.size());
-  std::vector<uint8_t> sigTlv = simple_tlv(0x9E, sigPoint.data(), sigPoint.size());
+  std::vector<uint8_t> stdTlv;
+  stdTlv.reserve(16 + endpointEphX.size() + readerEphX.size() + 30);
+  std::ranges::copy(simple_tlv(0x4D, readerIdentifier), std::back_inserter(stdTlv));
+  std::ranges::copy(simple_tlv(0x86, endpointEphX), std::back_inserter(stdTlv));
+  std::ranges::copy(simple_tlv(0x87, readerEphX), std::back_inserter(stdTlv));
+  std::ranges::copy(simple_tlv(0x4C, transactionIdentifier), std::back_inserter(stdTlv));
+  std::ranges::copy(simple_tlv(0x93, readerCtx), std::back_inserter(stdTlv));
+  std::vector<uint8_t> sigPoint = CommonCryptoUtils::signSharedInfo(stdTlv.data(), stdTlv.size(), reader_private_key.data(), reader_private_key.size());
+  std::vector<uint8_t> sigTlv = simple_tlv(0x9E, sigPoint);
   std::vector<uint8_t> apdu{0x80, 0x81, 0x0, 0x0, (uint8_t)sigTlv.size()};
   apdu.resize(apdu.size() + sigTlv.size());
   std::move(sigTlv.begin(), sigTlv.end(), apdu.begin() + 5);
@@ -144,20 +148,20 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, DigitalKeySecureContext, std::vector<ui
       }
       if (foundEndpoint != nullptr)
       {
-        std::vector<uint8_t> verification_hash_input_material(readerIdentifier.size() + endpointEphX.size() + readerEphX.size() + 30);
-        size_t olen = 0;
+        std::vector<uint8_t> verification_hash_input_material;
+        verification_hash_input_material.reserve(readerIdentifier.size() + endpointEphX.size() + readerEphX.size() + 30);
 
-        simple_tlv(0x4D, readerIdentifier.data(), readerIdentifier.size(), verification_hash_input_material.data(), &olen);
-        simple_tlv(0x86, endpointEphX.data(), endpointEphX.size(), verification_hash_input_material.data() + olen, &olen);
-        simple_tlv(0x87, readerEphX.data(), readerEphX.size(), verification_hash_input_material.data() + olen, &olen);
-        simple_tlv(0x4C, transactionIdentifier.data(), 16, verification_hash_input_material.data() + olen, &olen);
-        simple_tlv(0x93, deviceCtx, 4, verification_hash_input_material.data() + olen, &olen);
+        std::ranges::copy(simple_tlv(0x4D, readerIdentifier), std::back_inserter(verification_hash_input_material));
+        std::ranges::copy(simple_tlv(0x86, endpointEphX), std::back_inserter(verification_hash_input_material));
+        std::ranges::copy(simple_tlv(0x87, readerEphX), std::back_inserter(verification_hash_input_material));
+        std::ranges::copy(simple_tlv(0x4C, transactionIdentifier), std::back_inserter(verification_hash_input_material));
+        std::ranges::copy(simple_tlv(0x93, deviceCtx), std::back_inserter(verification_hash_input_material));
         mbedtls_ecp_keypair keypair;
         mbedtls_ecp_keypair_init(&keypair);
 
         uint8_t hash[32];
 
-        mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), verification_hash_input_material.data(), olen, hash);
+        mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), verification_hash_input_material.data(), verification_hash_input_material.size(), hash);
 
         LOG(D, "verification_hash_input_material: %s", fmt::format("{:02X}", fmt::join(hash, "")).c_str());
         mbedtls_mpi r;

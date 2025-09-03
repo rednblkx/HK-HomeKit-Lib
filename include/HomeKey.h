@@ -110,8 +110,8 @@ struct hkEndpoint_t
 {
   std::vector<uint8_t> endpoint_id;
   uint32_t last_used_at = 0;
-  int counter = 0;
-  int key_type = 0;
+  uint8_t counter = 0;
+  uint8_t key_type = 0;
   std::vector<uint8_t> endpoint_pk;
   std::vector<uint8_t> endpoint_pk_x;
   std::vector<uint8_t> endpoint_prst_k;

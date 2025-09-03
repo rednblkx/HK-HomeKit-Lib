@@ -1,4 +1,5 @@
 #pragma once
-#include <vector>
 #include <cstdint>
-std::vector<unsigned char> simple_tlv(unsigned char tag, const unsigned char* value, size_t valLength, unsigned char* out = NULL, size_t* olen = NULL);
+#include <span>
+#include <vector>
+std::vector<uint8_t> simple_tlv(uint8_t tag, std::span<const uint8_t> value);

@@ -106,5 +106,5 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, KeyFlow> HKFastAuth::attest(std::vector
     return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), kFlowFAST);
   }
   LOG(W, "FAST Flow failed! Moving to STANDARD Flow!");
-  return std::make_tuple(std::get<0>(foundData), std::get<1>(foundData), kFlowNext);
+  return std::make_tuple(nullptr, nullptr, kFlowNext);
 }

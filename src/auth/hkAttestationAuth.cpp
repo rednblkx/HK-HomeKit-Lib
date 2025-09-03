@@ -83,7 +83,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelo
                                       NDEFRecord("mdocreader", 0x04, "iso.org:18013:readerengagement", payload2, sizeof(payload2))})
                             .pack();
       LOG(D, "NDEF CMD LENGTH: %d, DATA: %s", ndefMessage.size(), fmt::format("{:02X}", fmt::join(ndefMessage, "")).c_str());
-      auto envelope1Tlv = simple_tlv(0x53, ndefMessage.data(), ndefMessage.size(), NULL, NULL);
+      auto envelope1Tlv = simple_tlv(0x53, ndefMessage);
       std::vector<uint8_t> env1Apdu = {0x00, 0xc3, 0x00, 0x01, static_cast<uint8_t>(envelope1Tlv.size())};
       env1Apdu.reserve(envelope1Tlv.size() + 6);
       env1Apdu.insert(env1Apdu.end(), envelope1Tlv.begin(), envelope1Tlv.end());
@@ -151,7 +151,7 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   if(encrypted.size() > 0){
     LOG(D, "ENC DATA: %s", fmt::format("{:02X}", fmt::join(encrypted, "")).c_str());
 
-    auto tlv = simple_tlv(0x53, encrypted.data(), encrypted.size());
+    auto tlv = simple_tlv(0x53, encrypted);
 
     std::vector<uint8_t> apdu = {0x0, 0xC3, 0x0, 0x0, (unsigned char)tlv.size()};
 
@@ -478,10 +478,9 @@ std::tuple<hkIssuer_t*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vec
 std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attest()
 {
   attestation_exchange_common_secret.resize(32);
-  attestation_exchange_common_secret.reserve(32);
   esp_fill_random(attestation_exchange_common_secret.data(), 32);
-  auto attTlv = simple_tlv(0xC0, attestation_exchange_common_secret.data(), 32, NULL, NULL);
-  auto opAttTlv = simple_tlv(0x8E, attTlv.data(), attTlv.size(), NULL, NULL);
+  auto attTlv = simple_tlv(0xC0, attestation_exchange_common_secret);
+  auto opAttTlv = simple_tlv(0x8E, attTlv);
   std::vector<uint8_t> attComm{0x0};
   attComm.reserve(opAttTlv.size() + 1);
   attComm.insert(attComm.begin() + 1, opAttTlv.begin(), opAttTlv.end());

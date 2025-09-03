@@ -1,6 +1,7 @@
 #include <hkAuthContext.h>
 #include "CommonCryptoUtils.h"
 #include "HomeKey.h"
+#include "fmt/base.h"
 #include "fmt/ranges.h"
 #include "hkFastAuth.h"
 #include "hkStdAuth.h"
@@ -8,6 +9,7 @@
 #include "simple_tlv.h"
 #include "logging.h"
 #include <esp_random.h>
+#include <iterator>
 #include <mbedtls/sha1.h>
 #include <chrono>
 #include <TLV8.hpp>
@@ -67,17 +69,20 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
   auto startTime = std::chrono::high_resolution_clock::now();
   uint8_t prot_v_data[2] = {0x02, 0x0};
 
-  std::vector<uint8_t> fastTlv(sizeof(prot_v_data) + readerEphPubKey.size() + transactionIdentifier.size() + readerIdentifier.size() + 8);
-  size_t len = 0;
-  simple_tlv(0x5C, prot_v_data, sizeof(prot_v_data), fastTlv.data(), &len);
+  std::vector<uint8_t> fastTlv;
+  fastTlv.reserve(sizeof(prot_v_data) + readerEphPubKey.size() + transactionIdentifier.size() + readerIdentifier.size() + 8); // +8 for TLV overhead
+  std::ranges::copy(simple_tlv(0x5C, prot_v_data), std::back_inserter(fastTlv));
+  std::ranges::copy(simple_tlv(0x87, readerEphPubKey), std::back_inserter(fastTlv));
+  std::ranges::copy(simple_tlv(0x4C, transactionIdentifier), std::back_inserter(fastTlv));
+  std::ranges::copy(simple_tlv(0x4D, readerIdentifier), std::back_inserter(fastTlv));
 
-  simple_tlv(0x87, readerEphPubKey.data(), readerEphPubKey.size(), fastTlv.data() + len, &len);
+  if (fastTlv.size() > 255) {
+      ESP_LOGE(TAG, "Error: TLV data is too large for APDU!");
+  }
 
-  simple_tlv(0x4C, transactionIdentifier.data(), transactionIdentifier.size(), fastTlv.data() + len, &len);
+  std::vector<uint8_t> apdu{0x80, 0x80, 0x01, 0x01, static_cast<uint8_t>(fastTlv.size())};
 
-  simple_tlv(0x4D, readerIdentifier.data(), readerIdentifier.size(), fastTlv.data() + len, &len);
-  std::vector<uint8_t> apdu{0x80, 0x80, 0x01, 0x01, (uint8_t)len};
-  apdu.insert(apdu.begin() + 5, fastTlv.begin(), fastTlv.end());
+  apdu.insert(apdu.end(), std::make_move_iterator(fastTlv.begin()), std::make_move_iterator(fastTlv.end()));
   std::vector<uint8_t> response;
   LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), fmt::format("{:02X}", fmt::join(apdu, "")).c_str());
   nfc(apdu, response, false);

@@ -2,4 +2,4 @@ dependencies:
   idf: '>=5.0'
   espressif/libsodium: ^1.0.20~2
   espressif/cbor: ^0.6.0~1
-  espressif/fmt: ^11.0.1
+  espp/format: '^1.0.22'
