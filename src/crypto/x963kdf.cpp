@@ -4,7 +4,11 @@
 
 #include "x963kdf.h"
 #include <mbedtls/cmac.h>
+#if defined(CONFIG_IDF_CMAKE)
 #include <esp_log.h>
+#else 
+#include "logging.h"
+#endif
 
 X963KDF::~X963KDF(){
     mbedtls_md_free(&md_ctx);
@@ -18,7 +22,7 @@ X963KDF::X963KDF(mbedtls_md_type_t algorithm, size_t length, const unsigned char
 
 void X963KDF::derive(const unsigned char* key_material, size_t key_material_len, unsigned char* output) {
     if (used) {
-        ESP_LOGE(TAG, "Already finalized");
+        LOG(E,"Already finalized");
         return;
         // throw std::logic_error("Already finalized");
     }
@@ -47,7 +51,7 @@ void X963KDF::verify(const unsigned char* key_material, size_t key_material_len,
     derive(key_material, key_material_len, derivedKey);
     if (!constant_time_eq(derivedKey, expected_key, length))
     {
-        ESP_LOGE(TAG, "Invalid key");
+        LOG(E, "Invalid key");
         return;
         // throw std::invalid_argument("Invalid key");
     }

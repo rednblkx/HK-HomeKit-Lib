@@ -6,7 +6,11 @@
 #include "ISO18013SecureContext.h"
 #include "logging.h"
 #include <cstdint>
+#if defined(CONFIG_IDF_CMAKE)
 #include <esp_random.h>
+#else 
+#include "sodium.h"
+#endif
 #include <sodium/crypto_sign_ed25519.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/error.h>
@@ -124,7 +128,13 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   cbor_encoder_close_container(&docType, &docMap);
 
   LOG(V, "ENV2 CBOR");
+  #if defined(CONFIG_IDF_CMAKE)
   ESP_LOG_BUFFER_HEX_LEVEL(TAG, doctype, cbor_encoder_get_buffer_size(&docType, doctype), ESP_LOG_VERBOSE);
+  #else
+  for (int i = 0; i < cbor_encoder_get_buffer_size(&docType, doctype); i++) {
+    printf("%02X", doctype[i]);
+  }
+  #endif
 
   uint8_t docBuf[150];
   CborEncoder doc;
@@ -146,7 +156,13 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
   cbor_encoder_close_container(&doc, &docReq);
   size_t docSize = cbor_encoder_get_buffer_size(&doc, docBuf);
   LOG(V, "ENV2 CBOR");
+  #if defined(CONFIG_IDF_CMAKE)
   ESP_LOG_BUFFER_HEX_LEVEL(TAG, docBuf, docSize, ESP_LOG_VERBOSE);
+  #else
+  for (int i = 0; i < docSize; i++) {
+    printf("%02X", docBuf[i]);
+  }
+  #endif
   auto encrypted = secureCtx.encryptMessageToEndpoint(std::vector<uint8_t>(docBuf, docBuf + docSize));
   if(encrypted.size() > 0){
     LOG(D, "ENC DATA: %s", fmt::format("{:02X}", fmt::join(encrypted, "")).c_str());
@@ -478,7 +494,11 @@ std::tuple<hkIssuer_t*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vec
 std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attest()
 {
   attestation_exchange_common_secret.resize(32);
+  #if defined(CONFIG_IDF_CMAKE)
   esp_fill_random(attestation_exchange_common_secret.data(), 32);
+  #else 
+  randombytes(attestation_exchange_common_secret.data(), 32);
+  #endif
   auto attTlv = simple_tlv(0xC0, attestation_exchange_common_secret);
   auto opAttTlv = simple_tlv(0x8E, attTlv);
   std::vector<uint8_t> attComm{0x0};

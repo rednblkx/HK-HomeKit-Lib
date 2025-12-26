@@ -4,7 +4,11 @@
 #include <mbedtls/ecp.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/sha1.h>
+#if defined(CONFIG_IDF_CMAKE)
 #include <esp_random.h>
+#else
+#include <sodium.h>
+#endif
 #include <mbedtls/error.h>
 #include <vector>
 #include "fmt/base.h"
@@ -91,7 +95,11 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
 
 int HK_HomeKit::esp_rng(void*, uint8_t* buf, size_t len)
 {
+  #ifdef CONFIG_IDF_CMAKE
   esp_fill_random(buf, len);
+  #else
+  randombytes(buf, len);
+  #endif
   return 0;
 }
 

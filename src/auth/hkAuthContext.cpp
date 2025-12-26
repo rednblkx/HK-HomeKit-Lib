@@ -8,7 +8,11 @@
 #include "hkAttestationAuth.h"
 #include "simple_tlv.h"
 #include "logging.h"
+#if defined(CONFIG_IDF_CMAKE)
 #include <esp_random.h>
+#else 
+#include "sodium.h"
+#endif
 #include <iterator>
 #include <mbedtls/sha1.h>
 #include <chrono>
@@ -34,7 +38,11 @@ HKAuthenticationContext::HKAuthenticationContext(const std::function<bool(std::v
   auto readerEphKey = CommonCryptoUtils::generateEphemeralKey();
   readerEphPrivKey.swap(std::get<0>(readerEphKey));
   readerEphPubKey.swap(std::get<1>(readerEphKey));
+  #if defined(CONFIG_IDF_CMAKE)
   esp_fill_random(transactionIdentifier.data(), 16);
+  #else 
+  randombytes(transactionIdentifier.data(), 16);
+  #endif
   readerIdentifier.reserve(readerData.reader_gid.size() + readerData.reader_id.size());
   readerIdentifier.insert(readerIdentifier.begin(), readerData.reader_gid.begin(), readerData.reader_gid.end());
   readerIdentifier.insert(readerIdentifier.end(), readerData.reader_id.begin(), readerData.reader_id.end());
@@ -77,7 +85,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
   std::ranges::copy(simple_tlv(0x4D, readerIdentifier), std::back_inserter(fastTlv));
 
   if (fastTlv.size() > 255) {
-      ESP_LOGE(TAG, "Error: TLV data is too large for APDU!");
+      LOG(E, "Error: TLV data is too large for APDU!");
   }
 
   std::vector<uint8_t> apdu{0x80, 0x80, 0x01, 0x01, static_cast<uint8_t>(fastTlv.size())};
@@ -86,7 +94,13 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
   std::vector<uint8_t> response;
   LOG(D, "Auth0 APDU Length: %d, DATA: %s", apdu.size(), fmt::format("{:02X}", fmt::join(apdu, "")).c_str());
   nfc(apdu, response, false);
+  #if defined(CONFIG_IDF_CMAKE)
   ESP_LOG_BUFFER_HEX_LEVEL(TAG, response.data(), response.size(), ESP_LOG_VERBOSE);
+  #else
+  for (int i = 0; i < response.size(); i++) {
+    printf("%02X", response[i]);
+  }
+  #endif
   LOG(D, "Auth0 Response Length: %d, DATA: %s", response.size(), fmt::format("{:02X}", fmt::join(response, "")).c_str());
   if (response.size() > 64 && response[0] == 0x86) {
     TLV8 Auth0Res;

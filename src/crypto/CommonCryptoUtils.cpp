@@ -6,14 +6,22 @@
 #include <mbedtls/ecdsa.h>
 #include <mbedtls/error.h>
 #include <logging.h>
+#if defined(CONFIG_IDF_CMAKE)
 #include <esp_random.h>
+#else 
+#include "sodium.h"
+#endif
 namespace CommonCryptoUtils
 {
   const char* TAG = "CCUtils";
 
   int esp_rng(void *, uint8_t *buf, size_t len)
   {
+    #if defined(CONFIG_IDF_CMAKE)
     esp_fill_random(buf, len);
+    #else 
+    randombytes(buf, len);
+    #endif
     return 0;
   }
 
