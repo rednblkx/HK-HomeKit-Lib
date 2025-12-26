@@ -128,7 +128,7 @@ struct hkIssuer_t
 
 struct readerData_t
 {
-  readerData_t() : reader_sk(32), reader_pk(65), reader_pk_x(0), reader_gid(0), reader_id(0), issuers(0) {}
+  readerData_t() : reader_sk(0), reader_pk(0), reader_pk_x(0), reader_gid(0), reader_id(0), issuers(0) {}
   std::vector<uint8_t> reader_sk;
   std::vector<uint8_t> reader_pk;
   std::vector<uint8_t> reader_pk_x;
