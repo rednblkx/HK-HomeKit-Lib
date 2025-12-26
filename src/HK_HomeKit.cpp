@@ -80,10 +80,10 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
   if (*operation->data() == kReader_Operation_Remove)
     if (RKR != rxTlv.end()) {
       LOG(I,"REMOVE READER KEY REQUEST");
-      // readerData.reader_gid.clear();
-      // readerData.reader_id.clear();
-      // readerData.reader_sk.clear();
-      // save_cb(readerData);
+      readerData.reader_gid.clear();
+      readerData.reader_id.clear();
+      readerData.reader_sk.clear();
+      save_cb(readerData);
       return std::vector<uint8_t>{ 0x7, 0x3, 0x2, 0x1, 0x0 };
     }
   return std::vector<uint8_t>();
