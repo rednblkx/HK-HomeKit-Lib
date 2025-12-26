@@ -252,5 +252,5 @@ int HK_HomeKit::set_reader_key(std::vector<uint8_t>& buf) {
     readerData.reader_gid = std::vector<uint8_t>{readeridentifier.begin(), readeridentifier.begin() + 8};
     save_cb(readerData);
   }
-  return -1;
+  return 0;
 }
