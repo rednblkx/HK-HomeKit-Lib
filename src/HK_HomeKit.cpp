@@ -37,7 +37,7 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
           LOG(D, "TLV LENGTH: %d, DATA: %s", sizeof(tlvRes), fmt::format("{:02X}", fmt::join(tlvRes, "")).c_str());
           return tlvRes;
         }
-        return std::vector<uint8_t>{ 0x01, 0x01, 0x01, 0x7, 0x0 };
+        return std::vector<uint8_t>{  };
       }
   }
   if (*operation->data() == kReader_Operation_Write) {
@@ -67,10 +67,12 @@ std::vector<uint8_t> HK_HomeKit::processResult() {
         dcrResSubTlv.add(kDevice_Res_Status, std::get<1>(state));
         std::vector<uint8_t> packedRes = dcrResSubTlv.get();
         LOG(D,"SUB-TLV: %d",packedRes.size());
+        LOG(D,"SUB-TLV: %s", fmt::format("{:02X}", fmt::join(packedRes, "")).c_str());
         TLV8 dcrResTlv;
-        dcrResSubTlv.add(kDevice_Credential_Response, packedRes);
-        LOG(D,"TLV: %d", dcrResTlv.size_packed());
+        dcrResTlv.add(kDevice_Credential_Response, packedRes);
         std::vector<uint8_t> result = dcrResTlv.get();
+        LOG(D,"TLV: %d", result.size());
+        LOG(D,"TLV: %s", fmt::format("{:02X}", fmt::join(result, "")).c_str());
         return result;
       }
     }
