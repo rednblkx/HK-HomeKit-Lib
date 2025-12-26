@@ -10,7 +10,7 @@
 #include "fmt/base.h"
 #include <fmt/ranges.h>
 
-HK_HomeKit::HK_HomeKit(readerData_t& readerData, const std::function<void(const readerData_t&)> &save_cb, const std::function<void()> &remove_key_cb, std::vector<uint8_t>& tlvData) : tlvData(tlvData), readerData(readerData), save_cb(save_cb), remove_key_cb(remove_key_cb) { }
+HK_HomeKit::HK_HomeKit(readerData_t& readerData, std::function<void(const readerData_t&)> save_cb, std::function<void()> remove_key_cb, std::vector<uint8_t>& tlvData) : tlvData(tlvData), readerData(readerData), save_cb(save_cb), remove_key_cb(remove_key_cb) { }
 
 std::vector<uint8_t> HK_HomeKit::processResult() {
   tlv_it operation;
