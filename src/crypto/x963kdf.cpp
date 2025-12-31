@@ -4,10 +4,9 @@
 
 #include "x963kdf.h"
 #include <mbedtls/cmac.h>
+#include "logging.h"
 #if defined(CONFIG_IDF_CMAKE)
 #include <esp_log.h>
-#else 
-#include "logging.h"
 #endif
 
 X963KDF::~X963KDF(){
