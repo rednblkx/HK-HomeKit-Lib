@@ -183,7 +183,8 @@ std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> 
     do
     {
       getMore = false;
-      nfc(getData, env2Res, false);
+      bool status = nfc(getData, env2Res, false);
+      if(!status) break;
       attestation_package.insert(attestation_package.end(), env2Res.begin(), env2Res.end());
       LOG(D, "Data Length: %d - pkg length: %d", env2Res.size(), attestation_package.size());
       if(env2Res.size() >= 250 && (*(&env2Res.back() - 1) == 0x61 && (env2Res.back() == 0x0 || env2Res.back() >= 0xd0))){
