@@ -1,4 +1,7 @@
 #include "CommonCryptoUtils.h"
+
+#include <array>
+
 #include "fmt/ranges.h"
 #include <mbedtls/ecp.h>
 #include <mbedtls/md.h>
@@ -6,6 +9,8 @@
 #include <mbedtls/ecdsa.h>
 #include <mbedtls/error.h>
 #include <logging.h>
+
+#include <mbedtls/gcm.h>
 #if defined(CONFIG_IDF_CMAKE)
 #include <esp_random.h>
 #else 
@@ -23,6 +28,47 @@ namespace CommonCryptoUtils
     randombytes(buf, len);
     #endif
     return 0;
+  }
+
+  std::vector<uint8_t> decryptAesGcm(const std::vector<uint8_t> &ciphertext, const std::array<uint8_t,32> &key,
+  const std::array<uint8_t,12> &iv) {
+    if (ciphertext.size() < 16) {
+      ESP_LOGE(TAG, "Ciphertext too short for GCM (needs at least 16 bytes for tag)");
+      return {};
+    }
+
+    LOG(I, "sk_device: %s", fmt::format("{:02X}", fmt::join(key, "")).c_str());
+
+    mbedtls_gcm_context gcm_ctx;
+    mbedtls_gcm_init(&gcm_ctx);
+
+    int ret = mbedtls_gcm_setkey(&gcm_ctx, MBEDTLS_CIPHER_ID_AES, key.data(), 256);
+    if (ret != 0) {
+      ESP_LOGE(TAG, "mbedtls_gcm_setkey failed: %d", ret);
+      mbedtls_gcm_free(&gcm_ctx);
+      return {};
+    }
+
+    size_t ciphertext_len = ciphertext.size() - 16;
+    const unsigned char* tag = ciphertext.data() + ciphertext_len;
+
+    std::vector<uint8_t> plaintext(ciphertext_len);
+
+    ret = mbedtls_gcm_auth_decrypt(&gcm_ctx, ciphertext_len,
+                                    iv.data(), 12,  // 12-byte IV
+                                    nullptr, 0,  // no additional data
+                                    tag, 16,  // 16-byte tag
+                                    ciphertext.data(), plaintext.data());
+
+    if (ret != 0) {
+      ESP_LOGE(TAG, "mbedtls_gcm_auth_decrypt failed: %d", ret);
+      mbedtls_gcm_free(&gcm_ctx);
+      return {};
+    }
+
+    mbedtls_gcm_free(&gcm_ctx);
+
+    return plaintext;
   }
 
   /**

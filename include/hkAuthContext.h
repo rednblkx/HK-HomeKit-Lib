@@ -8,6 +8,7 @@ class HKAuthenticationContext
 {
 private:
   const char *TAG = "HKAuthCtx";
+  DigitalKeyType type;
   readerData_t &readerData;
   std::vector<uint8_t> readerEphX;
   std::vector<uint8_t> readerEphPrivKey;
@@ -20,7 +21,12 @@ private:
   std::vector<uint8_t> readerIdentifier;
   std::vector<uint8_t> getHashIdentifier(const std::vector<uint8_t>& key);
   std::vector<uint8_t> commandFlow(CommandFlowStatus status);
+	std::array<uint8_t,2> protocolVersion;
+	std::array<uint8_t,2> flags{0x01, 0x01};
+	std::vector<uint8_t> aliroFCI;
 public:
-  HKAuthenticationContext(const std::function<bool(std::vector<uint8_t>&, std::vector<uint8_t>&, bool)> &nfc, readerData_t &readerData, const std::function<void(const readerData_t&)> &save_cb);
+  HKAuthenticationContext(DigitalKeyType type,const std::function<bool(std::vector<uint8_t> &, std::vector<uint8_t> &, bool)> &nfc,
+                          readerData_t &readerData, const std::function<void(const readerData_t &)> &save_cb);
+	void setAliroFCI(const std::vector<uint8_t> &fci);
   std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> authenticate(KeyFlow);
 };

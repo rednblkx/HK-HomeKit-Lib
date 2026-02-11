@@ -3,6 +3,11 @@
 #include <cstdint>
 #include <vector>
 
+typedef enum {
+  kAliro = 0x00,
+  kHomeKey = 0x01
+} DigitalKeyType;
+
 typedef enum
 {
   kReader_Operation = 0x01,

@@ -6,11 +6,11 @@
 #include "fmt/ranges.h"
 #include "logging.h"
 #include <cstdint>
-#include <span>
-#include <string.h>
+#include <cstring>
 #include <mbedtls/aes.h>
-#include <mbedtls/error.h>
 #include <mbedtls/cmac.h>
+
+#include "CommonCryptoUtils.h"
 
 /**
  * The function `pad_mode_3` pads a given message with a specified pad byte and block size, and returns
@@ -162,14 +162,21 @@ int DigitalKeySecureContext::aes_cmac(const unsigned char* key, const unsigned c
     return 0;
 }
 
-DigitalKeySecureContext::DigitalKeySecureContext(){}
-
-DigitalKeySecureContext::DigitalKeySecureContext(const unsigned char* volatileKey){
-    counter = 0;
-    memcpy(this->kenc, volatileKey, 16);   // Assuming a 128-bit key size
-    memcpy(this->kmac, volatileKey + 16, 16);   // Assuming a 128-bit key size
-    memcpy(this->krmac, volatileKey + 32, 16); // Assuming a 128-bit key size
+DigitalKeySecureContext::DigitalKeySecureContext(const std::vector<uint8_t> &volatileKey) {
+    device_counter = 0;
+    useAliro = false;
+    memcpy(this->kenc, volatileKey.data(), 16); // Assuming a 128-bit key size
+    memcpy(this->kmac, volatileKey.data() + 16, 16); // Assuming a 128-bit key size
+    memcpy(this->krmac, volatileKey.data() + 32, 16); // Assuming a 128-bit key size
 }
+
+DigitalKeySecureContext::DigitalKeySecureContext(const std::array<uint8_t,32> *skReader, const std::array<uint8_t,32> *skDevice) {
+    device_counter = 1;
+    useAliro = true;
+    this->skReader = skReader;
+    this->skDevice = skDevice;
+}
+
 
 /**
  * The function encrypts a command using a digital key secure context and returns the encrypted data
@@ -214,24 +221,56 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> DigitalKeySecureContext::
  * @return a vector of uint8_t, which represents the decrypted plaintext.
  */
 std::vector<uint8_t> DigitalKeySecureContext::decrypt_response(const unsigned char* data, size_t dataSize) {
-    LOG(D, "kenc= %s", fmt::format("{:02X}", fmt::join(kenc, "")).c_str());
-    LOG(D, "kmac= %s", fmt::format("{:02X}", fmt::join(kmac, "")).c_str());
-    LOG(D, "krmac= %s", fmt::format("{:02X}", fmt::join(krmac, "")).c_str());
-    LOG(V, "encrypted_data: %s", fmt::format("{:02X}", fmt::join(std::span<const uint8_t>(data, dataSize), "")).c_str());
-    std::vector<uint8_t> calculated_rmac(16);
-    size_t input_dataSize = 16 + (dataSize - 8);
-    std::vector<uint8_t> input_data = concatenate_arrays(mac_chaining_value, data, 16, dataSize - 8);
-    int cmac_status = aes_cmac(krmac, input_data.data(), input_dataSize, calculated_rmac.data());
-    LOG(V, "recv_rmac: %s", fmt::format("{:02X}", fmt::join(std::span<const uint8_t>(data + (dataSize - 8), 8) , "")).c_str());
-    LOG(V, "calculated_rmac: %s", fmt::format("{:02X}", fmt::join(calculated_rmac, "")).c_str());
-    if(cmac_status) return std::vector<uint8_t>();
+    std::vector<uint8_t> plaintext;
+    if (!useAliro) {
+        LOG(D, "kenc= %s", fmt::format("{:02X}", fmt::join(kenc, "")).c_str());
+        LOG(D, "kmac= %s", fmt::format("{:02X}", fmt::join(kmac, "")).c_str());
+        LOG(D, "krmac= %s", fmt::format("{:02X}", fmt::join(krmac, "")).c_str());
+        LOG(V, "encrypted_data: %s", fmt::format("{:02X}", fmt::join(std::vector(data, data+dataSize), "")).c_str());
+        std::vector<uint8_t> calculated_rmac(16);
+        size_t input_dataSize = 16 + (dataSize - 8);
+        std::vector<uint8_t> input_data = concatenate_arrays(mac_chaining_value, data, 16, dataSize - 8);
+        int cmac_status = aes_cmac(krmac, input_data.data(), input_dataSize, calculated_rmac.data());
+        LOG(V, "recv_rmac: %s", fmt::format("{:02X}", fmt::join(std::vector(data + (dataSize - 8),(data + (dataSize - 8)) + 8) , "")).c_str());
+        LOG(V, "calculated_rmac: %s", fmt::format("{:02X}", fmt::join(calculated_rmac, "")).c_str());
+        if(cmac_status) return {};
 
-    if(memcmp(data + (dataSize - 8), calculated_rmac.data(), 8)){
-        LOG(E, "calculated_rmac != recv_rmac");
-        return std::vector<uint8_t>();
+        if(memcmp(data + (dataSize - 8), calculated_rmac.data(), 8)){
+            LOG(E, "calculated_rmac != recv_rmac");
+            return {};
+        }
+
+         plaintext = decrypt(data, dataSize - 8, response_pcb, kenc);
+    } else {
+        if (dataSize < 16) {
+            LOG(E, "Response too short: %zu bytes (need at least 16 for GCM tag)", dataSize);
+            return {};
+        }
+        if (skDevice == nullptr) {
+            LOG(E, "No device key available");
+            return {};
+        }
+
+        std::array<uint8_t,12> iv{};
+        memcpy(iv.data(), ENDPOINT_MODE.data(), 8);
+        iv[8] = (device_counter >> 24) & 0xFF;
+        iv[9] = (device_counter >> 16) & 0xFF;
+        iv[10] = (device_counter >> 8) & 0xFF;
+        iv[11] = device_counter & 0xFF;
+
+        LOG(D, "decrypt_response: counter=%d", device_counter);
+        LOG(D, "IV: %s", fmt::format("{:02X}", fmt::join(iv, "")).c_str());
+
+        plaintext = CommonCryptoUtils::decryptAesGcm(std::vector(data, data + dataSize), *skDevice, iv);
+
+        if (!plaintext.empty()) {
+            device_counter++;
+            LOG(D, "Decryption successful, plaintext (%zu bytes): %s", plaintext.size(),
+                     fmt::format("{:02X}", fmt::join(plaintext, "")).c_str());
+        } else {
+            LOG(E, "Decryption failed - GCM tag verification failed");
+        }
     }
-
-    std::vector<uint8_t> plaintext = decrypt(data, dataSize - 8, response_pcb, kenc);
 
     return plaintext;
 }
@@ -266,7 +305,7 @@ std::vector<uint8_t> DigitalKeySecureContext::encrypt(unsigned char* plaintext, 
     std::vector<uint8_t> icv(16);
     std::vector<uint8_t> iv(16);
     std::fill(iv.data(), iv.data() + 16, 0);
-    unsigned char counter_byte[] = {static_cast<unsigned char>(counter % 256)};
+    unsigned char counter_byte[] = {static_cast<unsigned char>(device_counter % 256)};
     size_t input_data_size = 15 + 1;
     std::vector<uint8_t> input_data = concatenate_arrays(pcb, counter_byte, 15, 1);
     int encrypt_status1 = encrypt_aes_cbc(key, iv.data(), input_data.data(), input_data_size, icv.data());
@@ -311,7 +350,7 @@ std::vector<uint8_t> DigitalKeySecureContext::decrypt(const unsigned char* ciphe
 
     std::vector<uint8_t> icv(16, 0);
     std::vector<uint8_t> iv(16, 0);
-    unsigned char counter_byte[] = {static_cast<unsigned char>(counter % 256)};
+    unsigned char counter_byte[] = {static_cast<unsigned char>(device_counter % 256)};
     size_t input_data_size = 15 + 1;
     std::vector<uint8_t> input_data = concatenate_arrays(pcb, counter_byte, 15, 1);
     int encrypt_status = encrypt_aes_cbc(key, iv.data(), input_data.data(), input_data_size, icv.data());
@@ -333,7 +372,7 @@ std::vector<uint8_t> DigitalKeySecureContext::decrypt(const unsigned char* ciphe
 
     dec.resize(padding_index);
 
-    counter++;
+    device_counter++;
 
     return dec;
 }

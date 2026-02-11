@@ -1,7 +1,7 @@
 #include "hkAttestationAuth.h"
 #include "fmt/ranges.h"
 #include "ndef.h"
-#include "simple_tlv.h"
+#include "simple_tlv.hpp"
 #include "TLV8.hpp"
 #include "ISO18013SecureContext.h"
 #include "logging.h"
@@ -50,7 +50,7 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
   size_t rootSize = cbor_encoder_get_buffer_size(&root, buf);
   LOG(D, "NDEF CBOR");
 
-  LOG(D, "CBOR MATERIAL DATA: %s", fmt::format("{:02X}", fmt::join(std::span<uint8_t>(buf, rootSize), "")).c_str());
+  LOG(D, "CBOR MATERIAL DATA: %s", fmt::format("{:02X}", fmt::join(std::vector(buf, buf + rootSize), "")).c_str());
 
   std::vector<uint8_t> salt(32);
   int shaRet = mbedtls_sha256(buf, rootSize, salt.data(), false);
@@ -501,7 +501,7 @@ std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attes
   attComm.reserve(opAttTlv.size() + 1);
   attComm.insert(attComm.begin() + 1, opAttTlv.begin(), opAttTlv.end());
   LOG(D, "attComm: %s", fmt::format("{:02X}", fmt::join(attComm, "")).c_str());
-  auto encryptedCmd = DKSContext.encrypt_command(attComm.data(), attComm.size());
+  auto encryptedCmd = DKSContext->encrypt_command(attComm.data(), attComm.size());
 
   LOG(V, "encrypted_command: %s", fmt::format("{:02X}", fmt::join(std::get<0>(encryptedCmd), "")).c_str());
   LOG(V, "calculated_rmac: %s", fmt::format("{:02X}", fmt::join(std::get<1>(encryptedCmd), "")).c_str());

@@ -5,27 +5,34 @@
 #ifndef DIGITAL_KEY_SECURE_CONTEXT_H
 #define DIGITAL_KEY_SECURE_CONTEXT_H
 
+#include <array>
 #include <tuple>
 #include <vector>
 #include <cstdint>
 
 class DigitalKeySecureContext {
 public:
-    DigitalKeySecureContext();
-    DigitalKeySecureContext(const unsigned char *volatileKey);
+    DigitalKeySecureContext() = default;
+    DigitalKeySecureContext(const std::vector<uint8_t> &volatileKey);
+    DigitalKeySecureContext(const std::array<uint8_t,32> *skReader, const std::array<uint8_t,32> *skDevice);
 
     std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> encrypt_command(unsigned char* data, size_t dataSize);
     std::vector<uint8_t> decrypt_response(const unsigned char* data, size_t dataSize);
 
 private:
     const char *TAG = "DigitalKeySC";
-    int counter;
+    int device_counter{};
     unsigned char mac_chaining_value[16] = {0x0, 0x0, 0x0, 0x0, 0x0 ,0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
     unsigned char command_pcb[15] = {0x0, 0x0, 0x0, 0x0, 0x0 ,0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
     unsigned char response_pcb[15] = {0x80, 0x0, 0x0, 0x0, 0x0 ,0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
-    unsigned char kenc[16];
-    unsigned char kmac[16];
-    unsigned char krmac[16];
+    unsigned char kenc[16]{};
+    unsigned char kmac[16]{};
+    unsigned char krmac[16]{};
+    const std::array<uint8_t,32> *skReader = nullptr;
+    const std::array<uint8_t,32> *skDevice = nullptr;
+    bool useAliro = false;
+    const std::array<uint8_t, 8> READER_MODE = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    const std::array<uint8_t, 8> ENDPOINT_MODE = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
 
     std::vector<uint8_t> encrypt(unsigned char* plaintext, size_t data_size, const unsigned char* pcb, const unsigned char* key);
     std::vector<uint8_t> decrypt(const unsigned char* ciphertext, size_t data_size, const unsigned char* pcb, const unsigned char* key);
