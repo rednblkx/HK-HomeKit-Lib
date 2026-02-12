@@ -1,10 +1,10 @@
 #pragma once
-#include "HomeKey.h"
+#include "DDKReaderData.h"
 #include <cstdint>
 #include <functional>
 #include <vector>
 
-class HKAuthenticationContext
+class DDKAuthenticationContext
 {
 private:
   const char *TAG = "HKAuthCtx";
@@ -25,7 +25,7 @@ private:
 	std::array<uint8_t,2> flags{0x01, 0x01};
 	std::vector<uint8_t> aliroFCI;
 public:
-  HKAuthenticationContext(DigitalKeyType type,const std::function<bool(std::vector<uint8_t> &, std::vector<uint8_t> &, bool)> &nfc,
+  DDKAuthenticationContext(DigitalKeyType type,const std::function<bool(std::vector<uint8_t> &, std::vector<uint8_t> &, bool)> &nfc,
                           readerData_t &readerData, const std::function<void(const readerData_t &)> &save_cb);
 	void setAliroFCI(const std::vector<uint8_t> &fci);
   std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> authenticate(KeyFlow);

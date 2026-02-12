@@ -1,4 +1,4 @@
-#include "hkFastAuth.h"
+#include "FastAuth.h"
 #include "fmt/ranges.h"
 #include "logging.h"
 #include <mbedtls/hkdf.h>
@@ -23,7 +23,7 @@
  * @param outLen The parameter `outLen` represents the length of the output buffer `out`. It specifies
  * the maximum number of bytes that can be written to the `out` buffer.
  */
-void HKFastAuth::Auth0_keying_material(const char *context, const std::vector<uint8_t> &ePubX, const std::vector<uint8_t> &keyingMaterial, uint8_t *out, size_t outLen)
+void DDKFastAuth::Auth0_keying_material(const char *context, const std::vector<uint8_t> &ePubX, const std::vector<uint8_t> &keyingMaterial, uint8_t *out, size_t outLen)
 {
   uint8_t sel_version_tlv[4] = {0x5c, 0x02, params.version[0], params.version[1]};
   constexpr uint8_t hk_versions[6] = {0x5c, 0x04, 0x02, 0x0, 0x01, 0x0};
@@ -78,7 +78,7 @@ void HKFastAuth::Auth0_keying_material(const char *context, const std::vector<ui
  *
  * @return a pointer to an object of type `hkEndpoint_t`.
  */
-std::tuple<hkIssuer_t *, hkEndpoint_t *> HKFastAuth::find_endpoint_by_cryptogram(std::vector<uint8_t> &cryptogram)
+std::tuple<hkIssuer_t *, hkEndpoint_t *> DDKFastAuth::find_endpoint_by_cryptogram(std::vector<uint8_t> &cryptogram)
 {
   hkEndpoint_t *foundEndpoint = nullptr;
   hkIssuer_t *foundIssuer = nullptr;
@@ -133,7 +133,7 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *> HKFastAuth::find_endpoint_by_cryptogram
 }
 
 /**
- * The function `attest` in the `HKFastAuth` class performs authentication using FAST Flow and returns
+ * The function `attest` in the `DDKFastAuth` class performs authentication using FAST Flow and returns
  * the issuer, endpoint, and key flow type based on the encrypted message provided.
  * 
  * @param encryptedMessage The `attest` function takes a vector of uint8_t named `encryptedMessage` as
@@ -146,7 +146,7 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *> HKFastAuth::find_endpoint_by_cryptogram
  * so, it logs the authentication and returns the tuple with the FAST flow type. If the authentication
  * fails, it logs the failure and returns the tuple with the STANDARD flow type.
  */
-std::tuple<hkIssuer_t *, hkEndpoint_t *, KeyFlow> HKFastAuth::attest(std::vector<uint8_t> &encryptedMessage)
+std::tuple<hkIssuer_t *, hkEndpoint_t *, KeyFlow> DDKFastAuth::attest(std::vector<uint8_t> &encryptedMessage)
 {
   auto foundData = find_endpoint_by_cryptogram(encryptedMessage);
   if (std::get<1>(foundData) != nullptr)
@@ -158,5 +158,5 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, KeyFlow> HKFastAuth::attest(std::vector
   return std::make_tuple(nullptr, nullptr, kFlowNext);
 }
 
-HKFastAuth::HKFastAuth(HKAuthParams &params) : params(params) {
+DDKFastAuth::DDKFastAuth(DDKAuthParams &params) : params(params) {
 }

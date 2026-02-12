@@ -1,12 +1,12 @@
 #include <algorithm>
-#include <hkAuthContext.h>
+#include <DDKAuthContext.h>
 #include "CommonCryptoUtils.h"
-#include "HomeKey.h"
+#include "DDKReaderData.h"
 #include "fmt/ranges.h"
-#include "hkFastAuth.h"
-#include "hkStdAuth.h"
-#include "hkAttestationAuth.h"
-#include "hkAuthParams.h"
+#include "FastAuth.h"
+#include "StandardAuth.h"
+#include "AttestationAuth.h"
+#include "AuthParams.h"
 #include "simple_tlv.hpp"
 #include "logging.h"
 #if defined(CONFIG_IDF_CMAKE)
@@ -19,7 +19,7 @@
 #include <chrono>
 #include <TLV8.hpp>
 
-std::vector<uint8_t> HKAuthenticationContext::getHashIdentifier(const std::vector<uint8_t>& key) {
+std::vector<uint8_t> DDKAuthenticationContext::getHashIdentifier(const std::vector<uint8_t>& key) {
   LOG(V, "Key: %s, Length: %d", fmt::format("{:02X}", fmt::join(key, "")).c_str(), key.size());
   std::vector<unsigned char> hashable;
   hashable.insert(hashable.end(), key.begin(), key.end());
@@ -38,7 +38,7 @@ std::vector<uint8_t> HKAuthenticationContext::getHashIdentifier(const std::vecto
  *
  * @return a std::vector<uint8_t> object, which contains the received response
  */
-std::vector<uint8_t> HKAuthenticationContext::commandFlow(CommandFlowStatus status)
+std::vector<uint8_t> DDKAuthenticationContext::commandFlow(CommandFlowStatus status)
 {
   std::vector<uint8_t> cmdFlowRes(3);
   if (type == kHomeKey) {
@@ -72,7 +72,7 @@ std::vector<uint8_t> HKAuthenticationContext::commandFlow(CommandFlowStatus stat
  * `readerData_t`.
  * @param save_cb Callback to persist the reader data
  */
-HKAuthenticationContext::HKAuthenticationContext(DigitalKeyType type, const std::function<bool(std::vector<uint8_t>&, std::vector<uint8_t>&, bool)> &nfc, readerData_t &readerData, const std::function<void(const readerData_t&)> &save_cb) : type(type), readerData(readerData), nfc(nfc), save_cb(save_cb), transactionIdentifier(16)
+DDKAuthenticationContext::DDKAuthenticationContext(DigitalKeyType type, const std::function<bool(std::vector<uint8_t>&, std::vector<uint8_t>&, bool)> &nfc, readerData_t &readerData, const std::function<void(const readerData_t&)> &save_cb) : type(type), readerData(readerData), nfc(nfc), save_cb(save_cb), transactionIdentifier(16)
 {
   // esp_log_level_set(TAG, ESP_LOG_VERBOSE);
   if (type == DigitalKeyType::kAliro) {
@@ -97,7 +97,7 @@ HKAuthenticationContext::HKAuthenticationContext(DigitalKeyType type, const std:
   LOG(I, "Initialization Time: %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(stopTime - startTime).count());
 }
 
-void HKAuthenticationContext::setAliroFCI(const std::vector<uint8_t> &fci) {
+void DDKAuthenticationContext::setAliroFCI(const std::vector<uint8_t> &fci) {
   aliroFCI = fci;
 }
 
@@ -112,7 +112,7 @@ void HKAuthenticationContext::setAliroFCI(const std::vector<uint8_t> &fci) {
  * @return A tuple containing the matching `issuer_id` and `ep_id`, and the successful flow from
  * the enum `KeyFlow`.
  */
-std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthenticationContext::authenticate(KeyFlow hkFlow){
+std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> DDKAuthenticationContext::authenticate(KeyFlow hkFlow){
   auto startTime = std::chrono::high_resolution_clock::now();
   std::vector<uint8_t> fastTlv;
   fastTlv.reserve(protocolVersion.size() + readerEphPubKey.size() + transactionIdentifier.size() + readerIdentifier.size() + 8); // +8 for TLV overhead
@@ -166,7 +166,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
 #endif
   LOG(D, "Auth0 Response Length: %d, DATA: %s", response.size(), fmt::format("{:02X}", fmt::join(response, "")).c_str());
   if (response.size() > 64 && response[0] == 0x86) {
-    HKAuthParams auth_params{
+    DDKAuthParams auth_params{
       type,
       readerData.issuers,
       readerData.reader_pk_x,
@@ -195,7 +195,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
     if (hkFlow == kFlowFAST) {
       tlv_it crypt = Auth0Res.find(kAuth0_Cryptogram);
       std::vector<uint8_t> encryptedMessage = crypt->value;
-      auto fastAuth = HKFastAuth(auth_params).attest(encryptedMessage);
+      auto fastAuth = DDKFastAuth(auth_params).attest(encryptedMessage);
       if (std::get<1>(fastAuth) != nullptr && (flowUsed = std::get<2>(fastAuth)) == kFlowFAST)
       {
         foundIssuer = std::get<0>(fastAuth);
@@ -207,7 +207,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       std::array<uint8_t,32> persistentKey{};
       auth_params.reader_private_key = &readerData.reader_sk;
       auth_params.readerEphPrivKey = &readerEphPrivKey;
-      auto stdAuth = HKStdAuth(auth_params).attest();
+      auto stdAuth = DDKStdAuth(auth_params).attest();
       if(std::get<1>(stdAuth) != nullptr){
         foundIssuer = std::get<0>(stdAuth);
         foundEndpoint = std::get<1>(stdAuth);
@@ -222,7 +222,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       }
       if ((std::get<4>(stdAuth) == kFlowNext || hkFlow == kFlowATTESTATION) && type != kAliro) {
         auth_params.context = std::get<2>(stdAuth).get();
-        auto attestation = HKAttestationAuth(auth_params).attest();
+        auto attestation = DDKAttestationAuth(auth_params).attest();
         if ((flowUsed = std::get<KeyFlow>(attestation)) == kFlowATTESTATION) {
           hkEndpoint_t endpoint;
           foundIssuer = std::get<0>(attestation);

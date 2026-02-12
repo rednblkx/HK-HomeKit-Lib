@@ -2,10 +2,10 @@
 #include <array>
 #include <functional>
 #include <vector>
-#include "HomeKey.h"
+#include "DDKReaderData.h"
 #include "DigitalKeySecureContext.h"
 
-struct HKAuthParams {
+struct DDKAuthParams {
   DigitalKeyType type;
   std::vector<hkIssuer_t> &issuers;
   std::vector<uint8_t> &reader_pk_x;

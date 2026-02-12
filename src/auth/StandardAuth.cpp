@@ -1,7 +1,7 @@
-#include "hkStdAuth.h"
+#include "StandardAuth.h"
 #include "CommonCryptoUtils.h"
 #include "DigitalKeySecureContext.h"
-#include "HomeKey.h"
+#include "DDKReaderData.h"
 #include "fmt/ranges.h"
 #include "x963kdf.h"
 #include "logging.h"
@@ -34,7 +34,7 @@ constexpr char HK_CTX_VOLATILE_ASTR[] = "Volatile";
  * generated keying material will be stored.
  */
 template<typename Container>
-void HKStdAuth::Auth1_keying_material(std::array<uint8_t,32> &keyingMaterial, std::string_view context, Container &out)
+void DDKStdAuth::Auth1_keying_material(std::array<uint8_t,32> &keyingMaterial, std::string_view context, Container &out)
 {
   std::vector<uint8_t> dataMaterial;
   if (params.type == kHomeKey) {
@@ -109,20 +109,20 @@ void HKStdAuth::Auth1_keying_material(std::array<uint8_t,32> &keyingMaterial, st
   }
 }
 
-HKStdAuth::HKStdAuth(HKAuthParams &params) : params(params) {
+DDKStdAuth::DDKStdAuth(DDKAuthParams &params) : params(params) {
 }
 
 /**
  * Performs authentication using the STANDARD flow.
- * 
+ *
  * @return a tuple containing the following elements:
  * 1. A pointer to the issuer object (`hkIssuer_t*`)
  * 2. A pointer to the endpoint object (`hkEndpoint_t*`)
- * 3. An object of type `DigitalKeySecureContext`
- * 4. A vector of `uint8_t` elements
+ * 3. An smart pointer of type `DigitalKeySecureContext`
+ * 4. A 32 byte array containing the derived persistent key
  * 5. An enum value of type `KeyFlow`
  */
-std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext>, std::array<uint8_t,32>, KeyFlow> HKStdAuth::attest()
+std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext>, std::array<uint8_t,32>, KeyFlow> DDKStdAuth::attest()
 {
   // int readerContext = 1096652137;
   std::array<uint8_t,4> readerCtx{0x41, 0x5d, 0x95, 0x69};

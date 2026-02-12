@@ -1,4 +1,4 @@
-#include "hkAttestationAuth.h"
+#include "AttestationAuth.h"
 #include "fmt/ranges.h"
 #include "ndef.h"
 #include "simple_tlv.hpp"
@@ -17,10 +17,10 @@
 #include <cbor.h>
 #include <vector>
 
-HKAttestationAuth::HKAttestationAuth(HKAuthParams &params) : params(params) {
+DDKAttestationAuth::DDKAttestationAuth(DDKAuthParams &params) : params(params) {
 }
 
-std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsigned char> &env1Data, std::vector<unsigned char> &readerCmd)
+std::vector<unsigned char> DDKAttestationAuth::attestation_salt(std::vector<unsigned char> &env1Data, std::vector<unsigned char> &readerCmd)
 {
   TLV8 env1ResTlv;
   env1ResTlv.parse(env1Data.data(), env1Data.size());
@@ -69,7 +69,7 @@ std::vector<unsigned char> HKAttestationAuth::attestation_salt(std::vector<unsig
   return salt;
 }
 
-std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelope1Cmd()
+std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> DDKAttestationAuth::envelope1Cmd()
 {
   std::vector<uint8_t> ctrlFlow = {0x80, 0x3c, 0x40, 0xa0};
   std::vector<uint8_t> ctrlFlowRes;
@@ -107,7 +107,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> HKAttestationAuth::envelo
   return std::make_tuple(std::vector<uint8_t>(), std::vector<uint8_t>());
 }
 
-std::vector<unsigned char> HKAttestationAuth::envelope2Cmd(std::vector<uint8_t> &salt)
+std::vector<unsigned char> DDKAttestationAuth::envelope2Cmd(std::vector<uint8_t> &salt)
 {
   ISO18013SecureContext secureCtx = ISO18013SecureContext(attestation_exchange_common_secret, salt, 16);
 
@@ -231,7 +231,7 @@ CborError copy_byte_string(CborValue *value, std::vector<uint8_t> &target) {
 }
 
 
-std::tuple<hkIssuer_t*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vector<uint8_t>& decryptedCbor) {
+std::tuple<hkIssuer_t*, std::vector<uint8_t>> DDKAttestationAuth::verify(std::vector<uint8_t>& decryptedCbor) {
     hkIssuer_t* foundIssuer = nullptr;
     std::vector<uint8_t> devicePubKey;
 
@@ -490,7 +490,7 @@ std::tuple<hkIssuer_t*, std::vector<uint8_t>> HKAttestationAuth::verify(std::vec
     return std::make_tuple(nullptr, std::vector<uint8_t>());
 }
 
-std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> HKAttestationAuth::attest()
+std::tuple<hkIssuer_t *, std::vector<uint8_t>, KeyFlow> DDKAttestationAuth::attest()
 {
   attestation_exchange_common_secret.resize(32);
   #if defined(CONFIG_IDF_CMAKE)
