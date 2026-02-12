@@ -25,46 +25,45 @@
  */
 void HKFastAuth::Auth0_keying_material(const char *context, const std::vector<uint8_t> &ePubX, const std::vector<uint8_t> &keyingMaterial, uint8_t *out, size_t outLen)
 {
-  uint8_t constant = 0x5E;
-  uint8_t version_tlv[4] = {0x5c, 0x02, version[0], version[1]};
-  uint8_t supported_vers[6] = {0x5c, 0x04, 0x02, 0x0, 0x01, 0x0};
+  uint8_t sel_version_tlv[4] = {0x5c, 0x02, params.version[0], params.version[1]};
+  constexpr uint8_t hk_versions[6] = {0x5c, 0x04, 0x02, 0x0, 0x01, 0x0};
   std::vector<uint8_t> dataMaterial;
-  dataMaterial.reserve(32 + strlen(context) + readerIdentifier.size() + 32 + 1 + sizeof(supported_vers) + sizeof(version_tlv) + readerEphX.size() + 16 + 2 + endpointEphX.size());
-  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(reader_key_X.begin()), std::make_move_iterator(reader_key_X.end()));
+  dataMaterial.reserve(32 + strlen(context) + params.readerIdentifier.size() + 32 + 1 + sizeof(hk_versions) + sizeof(sel_version_tlv) + params.readerEphX.size() + 16 + 2 + params.endpointEphX.size());
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(params.reader_pk_x.begin()), std::make_move_iterator(params.reader_pk_x.end()));
   dataMaterial.insert(dataMaterial.end(), (uint8_t *)context, (uint8_t*)context + strlen(context));
-  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(readerIdentifier.begin()), std::make_move_iterator(readerIdentifier.end()));
-  if (type == kHomeKey) {
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(params.readerIdentifier.begin()), std::make_move_iterator(params.readerIdentifier.end()));
+  if (params.type == kHomeKey) {
     dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(ePubX.begin()), std::make_move_iterator(ePubX.end()));
   }
-  dataMaterial.push_back(constant);
-  if (type == kHomeKey) {
-    dataMaterial.insert(dataMaterial.end(), supported_vers, supported_vers + sizeof(supported_vers));
+  dataMaterial.push_back(0x5E);
+  if (params.type == kHomeKey) {
+    dataMaterial.insert(dataMaterial.end(), hk_versions, hk_versions + sizeof(hk_versions));
   }
-  dataMaterial.insert(dataMaterial.end(), version_tlv, version_tlv + sizeof(version_tlv));
-  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(readerEphX.begin()), std::make_move_iterator(readerEphX.end()));
-  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(transactionIdentifier.begin()), std::make_move_iterator(transactionIdentifier.end()));
-  dataMaterial.push_back(flags[0]);
-  dataMaterial.push_back(flags[1]);
-  if (type == kAliro) {
+  dataMaterial.insert(dataMaterial.end(), sel_version_tlv, sel_version_tlv + sizeof(sel_version_tlv));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(params.readerEphX.begin()), std::make_move_iterator(params.readerEphX.end()));
+  dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(params.transactionIdentifier.begin()), std::make_move_iterator(params.transactionIdentifier.end()));
+  dataMaterial.push_back(params.flags[0]);
+  dataMaterial.push_back(params.flags[1]);
+  if (params.type == kAliro) {
     dataMaterial.push_back(0xA5);
-    dataMaterial.push_back(static_cast<uint8_t>(aliroFCI.size()));
-    dataMaterial.insert(dataMaterial.end(), aliroFCI.begin(), aliroFCI.end());
+    dataMaterial.push_back(static_cast<uint8_t>(params.aliroFCI.size()));
+    dataMaterial.insert(dataMaterial.end(), params.aliroFCI.begin(), params.aliroFCI.end());
     dataMaterial.insert(dataMaterial.end(), ePubX.begin(), ePubX.end());
   }
-  if (type == kHomeKey) {
-    dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(endpointEphX.begin()), std::make_move_iterator(endpointEphX.end()));
+  if (params.type == kHomeKey) {
+    dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(params.endpointEphX.begin()), std::make_move_iterator(params.endpointEphX.end()));
   }
   LOG(D, "Auth0 HKDF Material: %s", fmt::format("{:02X}", fmt::join(dataMaterial, "")).c_str());
   int ret = 0;
-  if (type == kHomeKey) {
+  if (params.type == kHomeKey) {
     ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial.data(),
                        keyingMaterial.size(), dataMaterial.data(), dataMaterial.size(), out, outLen);
-  } else if (type == kAliro) {
+  } else if (params.type == kAliro) {
     ret = mbedtls_hkdf(
       mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
       dataMaterial.data(), dataMaterial.size(),
       keyingMaterial.data(), keyingMaterial.size(),
-      endpointEphX.data(), endpointEphX.size(),
+      params.endpointEphX.data(), params.endpointEphX.size(),
       out, outLen
     );
   }
@@ -83,17 +82,17 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *> HKFastAuth::find_endpoint_by_cryptogram
 {
   hkEndpoint_t *foundEndpoint = nullptr;
   hkIssuer_t *foundIssuer = nullptr;
-  for (auto &&issuer : issuers)
+  for (auto &&issuer : params.issuers)
   {
     LOG(V, "Issuer: %s, Endpoints: %d", fmt::format("{:02X}", fmt::join(issuer.issuer_id, "")).c_str(), issuer.endpoints.size());
     for (auto &&endpoint : issuer.endpoints)
     {
       if(endpoint.endpoint_prst_k.size() == 0) continue;
       LOG(V, "Endpoint: %s, Persistent Key: %s", fmt::format("{:02X}", fmt::join(endpoint.endpoint_id, "")).c_str(), fmt::format("{:02X}", fmt::join(endpoint.endpoint_prst_k, "")).c_str());
-      std::vector<uint8_t> hkdf(type == kHomeKey ? 58 : 160);
+      std::vector<uint8_t> hkdf(params.type == kHomeKey ? 58 : 160);
       Auth0_keying_material("VolatileFast", endpoint.endpoint_pk_x, endpoint.endpoint_prst_k, hkdf.data(), hkdf.size());
       LOG(V, "HKDF Derived Key: %s", fmt::format("{:02X}", fmt::join(hkdf, "")).c_str());
-      if (type == kAliro) {
+      if (params.type == kAliro) {
         std::array<uint8_t,32> sk{};
         std::copy_n(hkdf.data(), 32, sk.data());
         LOG(D, "SK: %s", fmt::format("{:02X}", fmt::join(sk, "")).c_str());
@@ -115,7 +114,7 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *> HKFastAuth::find_endpoint_by_cryptogram
         foundEndpoint = &endpoint;
         break;
       }
-      if (type == kHomeKey) {
+      if (params.type == kHomeKey) {
         if (!memcmp(hkdf.data(), cryptogram.data(), 16))
         {
           LOG(D, "Endpoint %s matches cryptogram", fmt::format("{:02X}", fmt::join(endpoint.endpoint_id, "")).c_str());
@@ -159,16 +158,5 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, KeyFlow> HKFastAuth::attest(std::vector
   return std::make_tuple(nullptr, nullptr, kFlowNext);
 }
 
-HKFastAuth::HKFastAuth(DigitalKeyType type, std::vector<uint8_t> &reader_pk_x, std::vector<hkIssuer_t> &issuers,
-  std::vector<uint8_t> &readerEphX, std::vector<uint8_t> &endpointEphPubKey, std::vector<uint8_t> &endpointEphX,
-  std::vector<uint8_t> &transactionIdentifier, std::vector<uint8_t> &readerIdentifier, std::vector<uint8_t> &aliroFci,
-  std::array<uint8_t, 2> &version, std::array<uint8_t, 2> &flags): type(type), reader_key_X(reader_pk_x), issuers(issuers),
-                                                                   readerEphX(readerEphX), endpointEphPubKey(endpointEphPubKey),
-                                                                   endpointEphX(endpointEphX),
-                                                                   transactionIdentifier(transactionIdentifier),
-                                                                   readerIdentifier(readerIdentifier),
-                                                                   aliroFCI(aliroFci),
-                                                                   version(version),
-                                                                   flags(flags) {
-  /* esp_log_level_set(TAG, ESP_LOG_VERBOSE); */
+HKFastAuth::HKFastAuth(HKAuthParams &params) : params(params) {
 }

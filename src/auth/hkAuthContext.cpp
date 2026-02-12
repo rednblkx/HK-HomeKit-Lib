@@ -6,6 +6,7 @@
 #include "hkFastAuth.h"
 #include "hkStdAuth.h"
 #include "hkAttestationAuth.h"
+#include "hkAuthParams.h"
 #include "simple_tlv.hpp"
 #include "logging.h"
 #if defined(CONFIG_IDF_CMAKE)
@@ -41,12 +42,12 @@ std::vector<uint8_t> HKAuthenticationContext::commandFlow(CommandFlowStatus stat
 {
   std::vector<uint8_t> cmdFlowRes(3);
   if (type == kHomeKey) {
-    std::vector<uint8_t> apdu = {0x80, 0x3c, static_cast<uint8_t>(status), status == kCmdFlowAttestation ? (uint8_t)0xa0 : (uint8_t)0x0};
+    std::vector<uint8_t> apdu = {0x80, 0x3c, static_cast<uint8_t>(status), 0x0};
     LOG(D, "APDU: %s, Length: %d", fmt::format("{:02X}", fmt::join(apdu, "")).c_str(), apdu.size());
     nfc(apdu, cmdFlowRes, false);
   }
   if (type == kAliro) {
-    uint8_t t = (status == kCmdFlowFailed ? 0x00 : 0x01);
+    const uint8_t t = (status == kCmdFlowFailed ? 0x00 : 0x01);
     std::vector<uint8_t> apdu {
       0x80, 0x3C, 0x00, 0x00,
       0x06,
@@ -165,6 +166,24 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
 #endif
   LOG(D, "Auth0 Response Length: %d, DATA: %s", response.size(), fmt::format("{:02X}", fmt::join(response, "")).c_str());
   if (response.size() > 64 && response[0] == 0x86) {
+    HKAuthParams auth_params{
+      type,
+      readerData.issuers,
+      readerData.reader_pk_x,
+      readerEphX,
+      endpointEphPubKey,
+      endpointEphX,
+      transactionIdentifier,
+      readerIdentifier,
+      aliroFCI,
+      protocolVersion,
+      nfc,
+      nullptr,
+      nullptr,
+      nullptr,
+      flags,
+      nullptr
+    };
     TLV8 Auth0Res;
     Auth0Res.parse(response.data(), response.size());
     tlv_it pubkey = Auth0Res.find(kEndpoint_Public_Key);
@@ -172,12 +191,11 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
     endpointEphX = CommonCryptoUtils::get_x(endpointEphPubKey);
     hkIssuer_t *foundIssuer = nullptr;
     hkEndpoint_t *foundEndpoint = nullptr;
-    std::array<uint8_t,32> persistentKey{};
     KeyFlow flowUsed = kFlowFailed;
     if (hkFlow == kFlowFAST) {
       tlv_it crypt = Auth0Res.find(kAuth0_Cryptogram);
       std::vector<uint8_t> encryptedMessage = crypt->value;
-      auto fastAuth = HKFastAuth(type, readerData.reader_pk_x, readerData.issuers, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier, aliroFCI, protocolVersion, flags).attest(encryptedMessage);
+      auto fastAuth = HKFastAuth(auth_params).attest(encryptedMessage);
       if (std::get<1>(fastAuth) != nullptr && (flowUsed = std::get<2>(fastAuth)) == kFlowFAST)
       {
         foundIssuer = std::get<0>(fastAuth);
@@ -186,7 +204,10 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
       }
     }
     if(foundEndpoint == nullptr){
-      auto stdAuth = HKStdAuth(type, nfc, readerData.reader_sk, readerEphPrivKey, readerData.issuers, readerEphX, endpointEphPubKey, endpointEphX, transactionIdentifier, readerIdentifier, aliroFCI, protocolVersion, readerData.reader_pk_x).attest();
+      std::array<uint8_t,32> persistentKey{};
+      auth_params.reader_private_key = &readerData.reader_sk;
+      auth_params.readerEphPrivKey = &readerEphPrivKey;
+      auto stdAuth = HKStdAuth(auth_params).attest();
       if(std::get<1>(stdAuth) != nullptr){
         foundIssuer = std::get<0>(stdAuth);
         foundEndpoint = std::get<1>(stdAuth);
@@ -200,7 +221,8 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
         }
       }
       if ((std::get<4>(stdAuth) == kFlowNext || hkFlow == kFlowATTESTATION) && type != kAliro) {
-        auto attestation = HKAttestationAuth(readerData.issuers, std::get<2>(stdAuth).get(), nfc).attest();
+        auth_params.context = std::get<2>(stdAuth).get();
+        auto attestation = HKAttestationAuth(auth_params).attest();
         if ((flowUsed = std::get<KeyFlow>(attestation)) == kFlowATTESTATION) {
           hkEndpoint_t endpoint;
           foundIssuer = std::get<0>(attestation);
@@ -219,7 +241,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
           foundEndpoint = &(*foundIssuer->endpoints.emplace(foundIssuer->endpoints.end(),endpoint));
         }
       }
-      if(flowUsed >= kFlowSTANDARD && !persistentKey.empty()){
+      if(flowUsed >= kFlowSTANDARD){
         save_cb(readerData);
       }
     }
@@ -230,7 +252,7 @@ std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, KeyFlow> HKAuthentication
         cmdFlowStatus = commandFlow(kCmdFlowSuccess);
         LOG(D, "CONTROL FLOW RESPONSE: %s, Length: %d", fmt::format("{:02X}", fmt::join(cmdFlowStatus, "")).c_str(), cmdFlowStatus.size());
       }
-      if (flowUsed == kFlowATTESTATION || cmdFlowStatus.data()[0] == 0x90)
+      if (flowUsed == kFlowATTESTATION || cmdFlowStatus[0] == 0x90)
       {
         LOG(I, "Endpoint authenticated, transaction took %lli ms", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count());
         return std::make_tuple(foundIssuer->issuer_id, foundEndpoint->endpoint_id, flowUsed);

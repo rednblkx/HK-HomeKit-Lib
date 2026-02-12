@@ -36,97 +36,80 @@ constexpr char HK_CTX_VOLATILE_ASTR[] = "Volatile";
 template<typename Container>
 void HKStdAuth::Auth1_keying_material(std::array<uint8_t,32> &keyingMaterial, std::string_view context, Container &out)
 {
-  uint8_t flags[2] = {0x01, 0x01};
-  uint8_t supported_vers[6] = {0x5c, 0x04, 0x02, 0x0, 0x01, 0x0};
   std::vector<uint8_t> dataMaterial;
-  dataMaterial.reserve(readerEphX.size() + endpointEphX.size() + transactionIdentifier.size() + 1 + sizeof(flags) + context.size() + version.size() + sizeof(supported_vers));
-  if (type == kHomeKey) {
-    dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(readerEphX.begin()), std::make_move_iterator(readerEphX.end()));
-    dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(endpointEphX.begin()), std::make_move_iterator(endpointEphX.end()));
-    dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(transactionIdentifier.begin()), std::make_move_iterator(transactionIdentifier.end()));
+  if (params.type == kHomeKey) {
+    uint8_t supported_vers[6] = {0x5c, 0x04, 0x02, 0x0, 0x01, 0x0};
+    dataMaterial.reserve(params.readerEphX.size() + params.endpointEphX.size() + params.transactionIdentifier.size() + 1 + params.flags.size() + context.size() + params.version.size() + sizeof(supported_vers));
+    dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(params.readerEphX.begin()), std::make_move_iterator(params.readerEphX.end()));
+    dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(params.endpointEphX.begin()), std::make_move_iterator(params.endpointEphX.end()));
+    dataMaterial.insert(dataMaterial.end(), std::make_move_iterator(params.transactionIdentifier.begin()), std::make_move_iterator(params.transactionIdentifier.end()));
     dataMaterial.push_back(0x5E);
-    dataMaterial.push_back(flags[0]);
-    dataMaterial.push_back(flags[1]);
+    dataMaterial.push_back(params.flags[0]);
+    dataMaterial.push_back(params.flags[1]);
     dataMaterial.insert(dataMaterial.end(), (uint8_t*)context.begin(), (uint8_t*)context.end());
     dataMaterial.push_back(0x5C);
-    dataMaterial.push_back(static_cast<uint8_t>(version.size()));
-    dataMaterial.insert(dataMaterial.end(), version.begin(), version.end());
+    dataMaterial.push_back(static_cast<uint8_t>(params.version.size()));
+    dataMaterial.insert(dataMaterial.end(), params.version.begin(), params.version.end());
     dataMaterial.insert(dataMaterial.end(), supported_vers, supported_vers + sizeof(supported_vers));
     LOG(D, "DATA Material Length: %d, Data: %s", dataMaterial.size(), fmt::format("{:02X}", fmt::join(dataMaterial, "")).c_str());
     mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, keyingMaterial.data(), 32, dataMaterial.data(), dataMaterial.size(), out.data(), out.size());
   }
-  if (type == kAliro) {
-    LOG(D,"readerPublicKeyX (%zu bytes): %s", readerPkX.size(),
-        fmt::format("{:02X}", fmt::join(readerPkX, "")).c_str());
-    dataMaterial.insert(dataMaterial.end(), readerPkX.begin(), readerPkX.end());
+  if (params.type == kAliro) {
+    dataMaterial.reserve(params.reader_pk_x.size() + context.size() + params.readerIdentifier.size() + params.version.size() + params.readerEphX.size() + params.transactionIdentifier.size() + params.aliroFCI.size());
+    LOG(I, "readerPublicKeyX (%zu bytes): %s", params.reader_pk_x.size(),
+        fmt::format("{:02X}", fmt::join(params.reader_pk_x, "")).c_str());
+    dataMaterial.insert(dataMaterial.end(), params.reader_pk_x.begin(), params.reader_pk_x.end());
 
-    LOG(D,"context: %s", context.data());
-    dataMaterial.insert(dataMaterial.end(), (uint8_t*)context.begin(), (uint8_t*)context.end());
+    LOG(I, "context: %s", context.data());
+    dataMaterial.insert(dataMaterial.end(), context.begin(), context.end());
 
-    LOG(D,"readerIdentifier (%zu bytes): %s", readerIdentifier.size(),
-        fmt::format("{:02X}", fmt::join(readerIdentifier, "")).c_str());
-    dataMaterial.insert(dataMaterial.end(), readerIdentifier.begin(), readerIdentifier.end());
+    LOG(I, "readerIdentifier (%zu bytes): %s", params.readerIdentifier.size(),
+        fmt::format("{:02X}", fmt::join(params.readerIdentifier, "")).c_str());
+    dataMaterial.insert(dataMaterial.end(), params.readerIdentifier.begin(), params.readerIdentifier.end());
 
-    LOG(D,"transport_type: 0x%02X", 0x5E);
-    dataMaterial.push_back(0x5E);  // TRANSPORT_TYPE_NFC = 0x5E
+    LOG(I, "transport_type: 0x%02X", 0x5E);
+    dataMaterial.push_back(0x5E);
 
-    LOG(D,"protocol_version TLV: 5C %02X %02X%02X", version.size(),
-        version[0], version[1]);
+    LOG(I, "protocol_version TLV: 5C %02X %02X%02X", params.version.size(),
+        params.version[0], params.version[1]);
     dataMaterial.push_back(0x5C);
-    dataMaterial.push_back(version.size());
-    dataMaterial.insert(dataMaterial.end(), version.begin(), version.end());
+    dataMaterial.push_back(params.version.size());
+    dataMaterial.insert(dataMaterial.end(), params.version.begin(), params.version.end());
 
-    LOG(D,"readerEphX (%zu bytes): %s", readerEphX.size(),
-        fmt::format("{:02X}", fmt::join(readerEphX, "")).c_str());
-    dataMaterial.insert(dataMaterial.end(), readerEphX.begin(), readerEphX.end());
+    LOG(I, "readerEphX (%zu bytes): %s", params.readerEphX.size(),
+        fmt::format("{:02X}", fmt::join(params.readerEphX, "")).c_str());
+    dataMaterial.insert(dataMaterial.end(), params.readerEphX.begin(), params.readerEphX.end());
 
-    LOG(D,"transactionIdentifier (%zu bytes): %s", transactionIdentifier.size(),
-        fmt::format("{:02X}", fmt::join(transactionIdentifier, "")).c_str());
-    dataMaterial.insert(dataMaterial.end(), transactionIdentifier.begin(), transactionIdentifier.end());
+    LOG(I, "transactionIdentifier (%zu bytes): %s", params.transactionIdentifier.size(),
+        fmt::format("{:02X}", fmt::join(params.transactionIdentifier, "")).c_str());
+    dataMaterial.insert(dataMaterial.end(), params.transactionIdentifier.begin(), params.transactionIdentifier.end());
 
-    LOG(D,"transaction_flags: 0x01, transaction_code: 0x01");
-    dataMaterial.push_back(0x01);  // FAST flow
-    dataMaterial.push_back(0x01);  // UNLOCK, V1
+    LOG(I, "transaction_flags: 0x01, transaction_code: 0x01");
+    dataMaterial.push_back(params.flags[0]);
+    dataMaterial.push_back(params.flags[1]);
 
-    LOG(D,"fciProprietaryTemplate (%zu bytes): %s", aliroFCI.size(),
-        fmt::format("{:02X}", fmt::join(aliroFCI, "")).c_str());
+    LOG(I, "fciProprietaryTemplate (%zu bytes): %s", params.aliroFCI.size(),
+        fmt::format("{:02X}", fmt::join(params.aliroFCI, "")).c_str());
     dataMaterial.push_back(0xA5);
-    dataMaterial.push_back(static_cast<uint8_t>(aliroFCI.size()));
-    dataMaterial.insert(dataMaterial.end(), aliroFCI.begin(), aliroFCI.end());
+    dataMaterial.push_back(static_cast<uint8_t>(params.aliroFCI.size()));
+    dataMaterial.insert(dataMaterial.end(), params.aliroFCI.begin(), params.aliroFCI.end());
 
     if (context == ALIRO_CTX_PERSISTENT_ASTR) {
-        LOG(D,"ep_pk (%zu bytes): %s", epPkX->size(), fmt::format("{:02X}", fmt::join(*epPkX, "")).c_str());
+        LOG(I, "ep_pk (%zu bytes): %s", epPkX->size(), fmt::format("{:02X}", fmt::join(*epPkX, "")).c_str());
         dataMaterial.insert(dataMaterial.end(), epPkX->begin(), epPkX->end());
     }
-    LOG(D,"HKDF Salt (%zu bytes): %s", dataMaterial.size(), fmt::format("{:02X}", fmt::join(dataMaterial, "")).c_str());
+    LOG(I, "HKDF Salt (%zu bytes): %s", dataMaterial.size(), fmt::format("{:02X}", fmt::join(dataMaterial, "")).c_str());
     mbedtls_hkdf(
       mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
       dataMaterial.data(), dataMaterial.size(),
       keyingMaterial.data(), 32,
-      endpointEphX.data(), endpointEphX.size(),
+      params.endpointEphX.data(), params.endpointEphX.size(),
       out.data(), out.size()
     );
   }
 }
 
-HKStdAuth::HKStdAuth(DigitalKeyType type, const std::function<bool(std::vector<uint8_t> &, std::vector<uint8_t> &, bool)> &nfc,
-                     std::vector<uint8_t> &reader_private_key, std::vector<uint8_t> &readerEphPrivKey,
-                     std::vector<hkIssuer_t> &issuers,
-                     std::vector<uint8_t> &readerEphX, std::vector<uint8_t> &endpointEphPubKey,
-                     std::vector<uint8_t> &endpointEphX,
-                     std::vector<uint8_t> &transactionIdentifier, std::vector<uint8_t> &readerIdentifier,
-                     std::vector<uint8_t> &aliroFci,
-                     std::array<uint8_t, 2> &version,
-                     std::vector<uint8_t> &readerPkX) : type(type), reader_private_key(reader_private_key),
-                                                        readerEphPrivKey(readerEphPrivKey), issuers(issuers),
-                                                        readerEphX(readerEphX), endpointEphPubKey(endpointEphPubKey),
-                                                        endpointEphX(endpointEphX),
-                                                        transactionIdentifier(transactionIdentifier),
-                                                        readerIdentifier(readerIdentifier), aliroFCI(aliroFci),
-                                                        version(version),
-                                                        readerPkX(readerPkX),
-                                                        nfc(nfc) {
-  /* esp_log_level_set(TAG, ESP_LOG_VERBOSE); */
+HKStdAuth::HKStdAuth(HKAuthParams &params) : params(params) {
 }
 
 /**
@@ -147,35 +130,35 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext
   std::array<uint8_t,4> deviceCtx{0x4e, 0x88, 0x7b, 0x4c};
 
   std::vector<uint8_t> stdTlv;
-  stdTlv.reserve(16 + endpointEphX.size() + readerEphX.size() + 30);
+  stdTlv.reserve(16 + params.endpointEphX.size() + params.readerEphX.size() + 30);
 #if __cplusplus >= 202002L
-  std::ranges::copy(simple_tlv(0x4D, readerIdentifier), std::back_inserter(stdTlv));
-  std::ranges::copy(simple_tlv(0x86, endpointEphX), std::back_inserter(stdTlv));
-  std::ranges::copy(simple_tlv(0x87, readerEphX), std::back_inserter(stdTlv));
-  std::ranges::copy(simple_tlv(0x4C, transactionIdentifier), std::back_inserter(stdTlv));
+  std::ranges::copy(simple_tlv(0x4D, params.readerIdentifier), std::back_inserter(stdTlv));
+  std::ranges::copy(simple_tlv(0x86, params.endpointEphX), std::back_inserter(stdTlv));
+  std::ranges::copy(simple_tlv(0x87, params.readerEphX), std::back_inserter(stdTlv));
+  std::ranges::copy(simple_tlv(0x4C, params.transactionIdentifier), std::back_inserter(stdTlv));
   std::ranges::copy(simple_tlv(0x93, readerCtx), std::back_inserter(stdTlv));
 #else
-  auto tlv1 = simple_tlv(0x4D, readerIdentifier);
+  auto tlv1 = simple_tlv(0x4D, params.readerIdentifier);
   std::copy(tlv1.begin(), tlv1.end(), std::back_inserter(stdTlv));
-  auto tlv2 = simple_tlv(0x86, endpointEphX);
+  auto tlv2 = simple_tlv(0x86, params.endpointEphX);
   std::copy(tlv2.begin(), tlv2.end(), std::back_inserter(stdTlv));
-  auto tlv3 = simple_tlv(0x87, readerEphX);
+  auto tlv3 = simple_tlv(0x87, params.readerEphX);
   std::copy(tlv3.begin(), tlv3.end(), std::back_inserter(stdTlv));
-  auto tlv4 = simple_tlv(0x4C, transactionIdentifier);
+  auto tlv4 = simple_tlv(0x4C, params.transactionIdentifier);
   std::copy(tlv4.begin(), tlv4.end(), std::back_inserter(stdTlv));
   auto tlv5 = simple_tlv(0x93, readerCtx);
   std::copy(tlv5.begin(), tlv5.end(), std::back_inserter(stdTlv));
 #endif
 
-  std::vector<uint8_t> sigPoint = CommonCryptoUtils::signSharedInfo(stdTlv.data(), stdTlv.size(), reader_private_key.data(), reader_private_key.size());
+  std::vector<uint8_t> sigPoint = CommonCryptoUtils::signSharedInfo(stdTlv.data(), stdTlv.size(), params.reader_private_key->data(), params.reader_private_key->size());
   std::vector<uint8_t> sigTlv = simple_tlv(0x9E, sigPoint);
   std::vector<uint8_t> apdu{0x80, 0x81, 0x0, 0x0};
-  if (type == kHomeKey) {
+  if (params.type == kHomeKey) {
     apdu.push_back(sigTlv.size());
     apdu.resize(apdu.size() + sigTlv.size());
     std::move(sigTlv.begin(), sigTlv.end(), apdu.begin() + 5);
   }
-  if (type == kAliro) {
+  if (params.type == kAliro) {
     apdu.push_back(sigTlv.size() + 3);
     apdu.push_back(0x41);
     apdu.push_back(0x01);
@@ -185,28 +168,28 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext
   }
   std::vector<uint8_t> response;
   LOG(D, "Auth1 APDU Length: %d, DATA: %s", apdu.size(), fmt::format("{:02X}", fmt::join(apdu, "")).c_str());
-  nfc(apdu, response, false);
+  params.nfc(apdu, response, false);
   LOG(D, "Auth1 Response Length: %d, DATA: %s", response.size(), fmt::format("{:02X}", fmt::join(response, "")).c_str());
   std::array<uint8_t,32> persistentKey{};
   std::vector<uint8_t> volatileKey(48);
-  if (type == kAliro){ volatileKey.resize(160); }
+  if (params.type == kAliro){ volatileKey.resize(160); }
   uint8_t sharedKey[32];
 
-  CommonCryptoUtils::get_shared_key(readerEphPrivKey, endpointEphPubKey, sharedKey, sizeof(sharedKey));
+  CommonCryptoUtils::get_shared_key(*params.readerEphPrivKey, params.endpointEphPubKey, sharedKey, sizeof(sharedKey));
   LOG(D, "Shared Key: %s", fmt::format("{:02X}", fmt::join(sharedKey, "")).c_str());
 
-  X963KDF kdf(MBEDTLS_MD_SHA256, 32, transactionIdentifier.data(), 16);
+  X963KDF kdf(MBEDTLS_MD_SHA256, 32, params.transactionIdentifier.data(), 16);
 
   std::array<uint8_t,32> derivedKey{};
   std::array<uint8_t,32> skDevice{};
   std::array<uint8_t,32> skReader{};
   kdf.derive(sharedKey, sizeof(sharedKey), derivedKey.data());
   LOG(D, "X963KDF Derived Key: %s", fmt::format("{:02X}", fmt::join(derivedKey, "")).c_str());
-  if (type == kHomeKey) {
+  if (params.type == kHomeKey) {
     Auth1_keying_material(derivedKey, HK_CTX_PERSISTENT_ASTR, persistentKey);
     Auth1_keying_material(derivedKey, HK_CTX_VOLATILE_ASTR, volatileKey);
   }
-  if (type == kAliro) {
+  if (params.type == kAliro) {
     Auth1_keying_material(derivedKey, ALIRO_CTX_VOLATILE_ASTR, volatileKey);
     std::memcpy(skReader.data(), volatileKey.data(), 32);
     std::memcpy(skDevice.data(), volatileKey.data() + 32, 32);
@@ -244,16 +227,16 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext
 
     LOG(D,"Exchange SK Reader (32 bytes): %s",
         fmt::format("{:02X}", fmt::join(skReader, "")).c_str());
-    LOG(D,"Exchange SK Device (32 bytes): %s",
+    LOG(I, "Exchange SK Device (32 bytes): %s",
         fmt::format("{:02X}", fmt::join(skDevice, "")).c_str());
   }
   LOG(D, "Persistent Key: %s", fmt::format("{:02X}", fmt::join(persistentKey, "")).c_str());
-  LOG(D, "Volatile Key: %s", fmt::format("{:02X}", fmt::join(volatileKey, "")).c_str());
+  LOG(I, "Volatile Key: %s", fmt::format("{:02X}", fmt::join(volatileKey, "")).c_str());
   std::unique_ptr<DigitalKeySecureContext> context;
-  if (type == kHomeKey) {
+  if (params.type == kHomeKey) {
     context = std::make_unique<DigitalKeySecureContext>(volatileKey);
   }
-  if (type == kAliro) {
+  if (params.type == kAliro) {
     context = std::make_unique<DigitalKeySecureContext>(&skReader, &skDevice);
   }
   hkEndpoint_t *foundEndpoint = nullptr;
@@ -267,7 +250,7 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext
       TLV8 decryptedTlv;
       decryptedTlv.parse(response_result.data(), response_result.size());
       std::vector<uint8_t> signature = decryptedTlv.find(0x9E)->value;
-      if (type == kHomeKey) {
+      if (params.type == kHomeKey) {
         std::vector<uint8_t> device_identifier = decryptedTlv.find(0x4E)->value;
         LOG(D, "Device Identifier: %s", fmt::format("{:02X}", fmt::join(device_identifier, "")).c_str());
         LOG(D, "Signature: %s", fmt::format("{:02X}", fmt::join(signature, "")).c_str());
@@ -276,7 +259,7 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext
           LOG(E, "TLV DATA INVALID!");
           return std::make_tuple(foundIssuer, foundEndpoint, std::move(context), persistentKey, kFlowFailed);
         }
-        for (auto &&issuer : issuers)
+        for (auto &&issuer : params.issuers)
         {
           for (auto &&endpoint : issuer.endpoints)
           {
@@ -290,9 +273,9 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext
           }
         }
       }
-      if (type == kAliro) {
+      if (params.type == kAliro) {
         std::vector<uint8_t> devicePk = decryptedTlv.find(0x5A)->value;
-        for (auto &issuer: issuers) {
+        for (auto &issuer: params.issuers) {
           for (auto &endpoint: issuer.endpoints) {
             if (memcmp(devicePk.data(), endpoint.endpoint_pk.data(), 65) == 0) {
               foundIssuer = &issuer;
@@ -311,22 +294,22 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext
       if (foundEndpoint != nullptr)
       {
         std::vector<uint8_t> verification_hash_input_material;
-        verification_hash_input_material.reserve(readerIdentifier.size() + endpointEphX.size() + readerEphX.size() + 30);
+        verification_hash_input_material.reserve(params.readerIdentifier.size() + params.endpointEphX.size() + params.readerEphX.size() + 30);
 
 #if __cplusplus >= 202002L
-        std::ranges::copy(simple_tlv(0x4D, readerIdentifier), std::back_inserter(verification_hash_input_material));
-        std::ranges::copy(simple_tlv(0x86, endpointEphX), std::back_inserter(verification_hash_input_material));
-        std::ranges::copy(simple_tlv(0x87, readerEphX), std::back_inserter(verification_hash_input_material));
-        std::ranges::copy(simple_tlv(0x4C, transactionIdentifier), std::back_inserter(verification_hash_input_material));
+        std::ranges::copy(simple_tlv(0x4D, params.readerIdentifier), std::back_inserter(verification_hash_input_material));
+        std::ranges::copy(simple_tlv(0x86, params.endpointEphX), std::back_inserter(verification_hash_input_material));
+        std::ranges::copy(simple_tlv(0x87, params.readerEphX), std::back_inserter(verification_hash_input_material));
+        std::ranges::copy(simple_tlv(0x4C, params.transactionIdentifier), std::back_inserter(verification_hash_input_material));
         std::ranges::copy(simple_tlv(0x93, deviceCtx), std::back_inserter(verification_hash_input_material));
 #else
-        auto vtlv1 = simple_tlv(0x4D, readerIdentifier);
+        auto vtlv1 = simple_tlv(0x4D, params.readerIdentifier);
         std::copy(vtlv1.begin(), vtlv1.end(), std::back_inserter(verification_hash_input_material));
-        auto vtlv2 = simple_tlv(0x86, endpointEphX);
+        auto vtlv2 = simple_tlv(0x86, params.endpointEphX);
         std::copy(vtlv2.begin(), vtlv2.end(), std::back_inserter(verification_hash_input_material));
-        auto vtlv3 = simple_tlv(0x87, readerEphX);
+        auto vtlv3 = simple_tlv(0x87, params.readerEphX);
         std::copy(vtlv3.begin(), vtlv3.end(), std::back_inserter(verification_hash_input_material));
-        auto vtlv4 = simple_tlv(0x4C, transactionIdentifier);
+        auto vtlv4 = simple_tlv(0x4C, params.transactionIdentifier);
         std::copy(vtlv4.begin(), vtlv4.end(), std::back_inserter(verification_hash_input_material));
         auto vtlv5 = simple_tlv(0x93, deviceCtx);
         std::copy(vtlv5.begin(), vtlv5.end(), std::back_inserter(verification_hash_input_material));
@@ -363,7 +346,7 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *, std::unique_ptr<DigitalKeySecureContext
 
         if (result == 0)
         {
-          if (type == kAliro) {
+          if (params.type == kAliro) {
             Auth1_keying_material(derivedKey, ALIRO_CTX_PERSISTENT_ASTR, persistentKey);
           }
           return std::make_tuple(foundIssuer, foundEndpoint, std::move(context), persistentKey, kFlowSTANDARD);
