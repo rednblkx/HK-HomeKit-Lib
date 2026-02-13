@@ -97,22 +97,24 @@ std::tuple<hkIssuer_t *, hkEndpoint_t *> DDKFastAuth::find_endpoint_by_cryptogra
         std::copy_n(hkdf.data(), 32, sk.data());
         LOG(D, "SK: %s", fmt::format("{:02X}", fmt::join(sk, "")).c_str());
         auto plaintext = CommonCryptoUtils::decryptAesGcm(cryptogram, sk, {0,0,0,0,0,0,0,0,0,0,0,0});
-        LOG(D, "Decrypted Cryptogram: %s", fmt::format("{:02X}", fmt::join(plaintext, "")).c_str());
-        TLV8 decryptedTlv;
-        decryptedTlv.parse(plaintext.data(), plaintext.size());
-        auto identifier = decryptedTlv.find(0x5E);
-        auto issued_at = decryptedTlv.find(0x91);
-        auto expires_at = decryptedTlv.find(0x92);
-        if (identifier->value.empty() || issued_at->value.empty() || expires_at->value.empty()) {
-          LOG(E, "Could not validate endpoint!");
-          continue;
+        if (!plaintext.empty()) {
+          LOG(D, "Decrypted Cryptogram: %s", fmt::format("{:02X}", fmt::join(plaintext, "")).c_str());
+          TLV8 decryptedTlv;
+          decryptedTlv.parse(plaintext.data(), plaintext.size());
+          auto identifier = decryptedTlv.find(0x5E);
+          auto issued_at = decryptedTlv.find(0x91);
+          auto expires_at = decryptedTlv.find(0x92);
+          if (identifier->value.empty() || issued_at->value.empty() || expires_at->value.empty()) {
+            LOG(E, "Could not validate endpoint!");
+            continue;
+          }
+          LOG(D,  "Identifier: %s", fmt::format("{:02X}", fmt::join(identifier->value, "")).c_str());
+          LOG(D,  "issued_at: %s", fmt::format("{:02X}", fmt::join(issued_at->value, "")).c_str());
+          LOG(D,  "expires_at: %s", fmt::format("{:02X}", fmt::join(expires_at->value, "")).c_str());
+          foundIssuer = &issuer;
+          foundEndpoint = &endpoint;
+          break;
         }
-        LOG(D,  "Identifier: %s", fmt::format("{:02X}", fmt::join(identifier->value, "")).c_str());
-        LOG(D,  "issued_at: %s", fmt::format("{:02X}", fmt::join(issued_at->value, "")).c_str());
-        LOG(D,  "expires_at: %s", fmt::format("{:02X}", fmt::join(expires_at->value, "")).c_str());
-        foundIssuer = &issuer;
-        foundEndpoint = &endpoint;
-        break;
       }
       if (params.type == kHomeKey) {
         if (!memcmp(hkdf.data(), cryptogram.data(), 16))
